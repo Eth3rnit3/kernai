@@ -99,11 +99,14 @@ module Scenarios
       @recorder = Kernai::Recorder.new
       @events = []
 
+      skill_names = @skills.map { |s| s[:name] }
+
       agent = Kernai::Agent.new(
         instructions: @instructions,
         provider: provider,
         model: model,
-        max_steps: @max_steps
+        max_steps: @max_steps,
+        skills: skill_names.any? ? skill_names : nil
       )
 
       header(provider_name, model)
@@ -157,6 +160,9 @@ module Scenarios
       when :skill_error
         puts
         puts "\e[31m  !! #{event.data[:skill]}: #{event.data[:error]}\e[0m"
+      when :builtin_result
+        puts
+        puts "\e[36m  => #{event.data[:command]}: #{truncate(event.data[:result], 200)}\e[0m"
       when :final
         puts
       when :plan
@@ -192,6 +198,19 @@ module Scenarios
         puts "    Messages sent: #{msg_count}"
         puts "    Blocks parsed: #{block_types.join(', ')}"
 
+        # Show plan blocks
+        entries.select { |e| e[:event] == :plan }.each do |e|
+          puts "    \e[2mPlan: #{truncate(e[:data], 120)}\e[0m"
+        end
+
+        # Show builtin commands
+        entries.select { |e| e[:event] == :builtin_result }.each do |e|
+          puts "    \e[36mBuiltin: #{e[:data][:command]} => #{truncate(e[:data][:result].to_s, 120)}\e[0m"
+        end
+        entries.select { |e| e[:event] == :builtin_error }.each do |e|
+          puts "    \e[31mBuiltin error: #{e[:data][:command]} (#{e[:data][:error]})\e[0m"
+        end
+
         # Show skill calls
         entries.select { |e| e[:event] == :skill_execute }.each do |e|
           puts "    \e[33mSkill call: #{e[:data][:skill]}(#{format_params(e[:data][:params])})\e[0m"
@@ -201,6 +220,11 @@ module Scenarios
         end
         entries.select { |e| e[:event] == :skill_error }.each do |e|
           puts "    \e[31mSkill error: #{e[:data][:error]}\e[0m"
+        end
+
+        # Show JSON blocks
+        entries.select { |e| e[:event] == :json }.each do |e|
+          puts "    \e[35mJSON: #{truncate(e[:data], 120)}\e[0m"
         end
 
         # Show raw response (truncated)

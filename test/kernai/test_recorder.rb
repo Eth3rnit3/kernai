@@ -301,4 +301,69 @@ class TestRecorder < Minitest::Test
     assert parsed.size.positive?
     assert(parsed.all? { |e| e.key?('step') && e.key?('event') && e.key?('data') && e.key?('timestamp') })
   end
+
+  # --- Plan and JSON block recording ---
+
+  def test_records_plan_blocks
+    @provider.respond_with('<block type="plan">Think first</block><block type="final">Done</block>')
+    Kernai::Kernel.run(@agent, 'Go', recorder: @recorder)
+
+    plan_entries = @recorder.for_event(:plan)
+    assert_equal 1, plan_entries.size
+    assert_equal 'Think first', plan_entries[0][:data]
+  end
+
+  def test_records_json_blocks
+    @provider.respond_with('<block type="json">{"key": "value"}</block><block type="final">Done</block>')
+    Kernai::Kernel.run(@agent, 'Go', recorder: @recorder)
+
+    json_entries = @recorder.for_event(:json)
+    assert_equal 1, json_entries.size
+    assert_includes json_entries[0][:data], '"key"'
+  end
+
+  # --- Builtin command recording ---
+
+  def test_records_builtin_skills_command
+    Kernai::Skill.define(:test_skill) do
+      description 'A test skill'
+      input :x, String
+      execute { |_| 'ok' }
+    end
+
+    agent = Kernai::Agent.new(
+      instructions: 'test',
+      provider: @provider,
+      model: 'test-model',
+      max_steps: 5,
+      skills: :all
+    )
+
+    @provider.respond_with(
+      '<block type="command" name="/skills"></block>',
+      '<block type="final">OK</block>'
+    )
+
+    Kernai::Kernel.run(agent, 'Go', recorder: @recorder)
+
+    builtin_entries = @recorder.for_event(:builtin_result)
+    assert_equal 1, builtin_entries.size
+    assert_equal '/skills', builtin_entries[0][:data][:command]
+    assert_includes builtin_entries[0][:data][:result], 'test_skill'
+  end
+
+  # --- Missing command name recording ---
+
+  def test_records_command_without_name
+    @provider.respond_with(
+      '<block type="command">do something</block>',
+      '<block type="final">OK</block>'
+    )
+
+    Kernai::Kernel.run(@agent, 'Go', recorder: @recorder)
+
+    error_entries = @recorder.for_event(:skill_error)
+    assert_equal 1, error_entries.size
+    assert_includes error_entries[0][:data][:error], 'no skill name'
+  end
 end

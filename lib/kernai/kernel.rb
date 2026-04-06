@@ -64,9 +64,11 @@ module Kernai
             case block.type
             when :plan
               Kernai.logger.debug(event: 'block.complete', type: :plan)
+              rec&.record(step: step, event: :plan, data: block.content)
               callback&.call(Event.new(:plan, block.content))
             when :json
               Kernai.logger.debug(event: 'block.complete', type: :json)
+              rec&.record(step: step, event: :json, data: block.content)
               callback&.call(Event.new(:json, block.content))
             end
           end
@@ -127,6 +129,7 @@ module Kernai
 
         unless command_name
           Kernai.logger.error(event: 'skill.execute', error: 'no skill name in command block')
+          rec&.record(step: step, event: :skill_error, data: { skill: nil, error: 'no skill name in command block' })
           return Message.new(
             role: :user,
             content: '<block type="error">Command block missing skill name</block>'
