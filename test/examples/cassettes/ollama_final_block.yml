@@ -1,0 +1,73 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://api.ollama.com/api/chat
+    body:
+      encoding: UTF-8
+      string: '{"model":"gemma3:27b","messages":[{"role":"system","content":"You MUST
+        respond ONLY using XML blocks with this EXACT syntax:\n<block type=\"TYPE\">content
+        here</block>\n\nCRITICAL: The tag name is always \"block\" with a type attribute.
+        Never use shorthand tags like <final> or <command>.\n\nCorrect example:\n<block
+        type=\"final\">This is my answer.</block>\n\nWrong (DO NOT use):\n<final>This
+        is my answer.</final>\n\nAvailable types:\n- final: your final answer to the
+        user\n- command: execute an action (requires name attribute, e.g. <block type=\"command\"
+        name=\"skill_name\">params</block>)\n- plan: your reasoning before answering
+        (optional)\n\nAlways wrap your final answer in <block type=\"final\">...</block>.\n"},{"role":"user","content":"What
+        is 2+2?"}],"stream":false}'
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Date:
+      - Mon, 06 Apr 2026 21:10:45 GMT
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Set-Cookie:
+      - aid=4b5739b8-ed1e-424c-a270-76e9d03adbaf; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 7cb5adac31238c58530a172859b7efbf55c94869
+      X-Build-Time:
+      - '2026-04-06T13:06:07-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - 9994c814-e3ee-45e0-976e-6592a51ca45c
+      Server:
+      - cloudflare
+      X-Cloud-Trace-Context:
+      - 70a8a77532e7b89fc28c42e316716dbb/14347765425715503220
+      Traceparent:
+      - 00-70a8a77532e7b89fc28c42e316716dbb-c71d80a310676074-00
+      Via:
+      - 1.1 google
+      Cf-Cache-Status:
+      - DYNAMIC
+      Cf-Ray:
+      - 9e83c7f328a6e187-MRS
+    body:
+      encoding: ASCII-8BIT
+      string: '{"model":"gemma3:27b","created_at":"2026-04-06T21:10:45.903751826Z","message":{"role":"assistant","content":"\u003cblock
+        type=\"plan\"\u003eThe question is a simple addition problem. I need to calculate
+        2 + 2 and provide the result.\u003c/block\u003e\n\u003cblock type=\"final\"\u003e4\u003c/block\u003e"},"done":true,"done_reason":"stop","total_duration":672254861,"prompt_eval_count":179,"eval_count":42}
+
+        '
+  recorded_at: Mon, 06 Apr 2026 21:10:45 GMT
+recorded_with: VCR 6.4.0

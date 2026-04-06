@@ -1,14 +1,16 @@
-require "net/http"
-require "uri"
-require "json"
+# frozen_string_literal: true
+
+require 'net/http'
+require 'uri'
+require 'json'
 
 module Kernai
   module Examples
     class AnthropicProvider < Kernai::Provider
-      API_URL = "https://api.anthropic.com/v1/messages"
-      API_VERSION = "2023-06-01"
+      API_URL = 'https://api.anthropic.com/v1/messages'
+      API_VERSION = '2023-06-01'
 
-      def initialize(api_key: ENV["ANTHROPIC_API_KEY"])
+      def initialize(api_key: ENV['ANTHROPIC_API_KEY'])
         @api_key = api_key
       end
 
@@ -35,7 +37,7 @@ module Kernai
       def extract_system(messages)
         system_msg = nil
         chat = messages.reject do |m|
-          if m[:role].to_s == "system"
+          if m[:role].to_s == 'system'
             system_msg = m[:content]
             true
           end
@@ -47,7 +49,7 @@ module Kernai
         payload = {
           model: model,
           max_tokens: 4096,
-          messages: messages.map { |m| { "role" => m[:role].to_s, "content" => m[:content] } }
+          messages: messages.map { |m| { 'role' => m[:role].to_s, 'content' => m[:content] } }
         }
         payload[:system] = system if system
         payload[:stream] = true if stream
@@ -60,9 +62,9 @@ module Kernai
         http.read_timeout = 120
 
         request = Net::HTTP::Post.new(uri.path)
-        request["Content-Type"] = "application/json"
-        request["x-api-key"] = @api_key
-        request["anthropic-version"] = API_VERSION
+        request['Content-Type'] = 'application/json'
+        request['x-api-key'] = @api_key
+        request['anthropic-version'] = API_VERSION
         request.body = JSON.generate(payload)
 
         http.request(request)
@@ -70,27 +72,27 @@ module Kernai
 
       def parse_response(body)
         data = JSON.parse(body)
-        content_blocks = data["content"] || []
-        content_blocks.select { |b| b["type"] == "text" }.map { |b| b["text"] }.join
+        content_blocks = data['content'] || []
+        content_blocks.select { |b| b['type'] == 'text' }.map { |b| b['text'] }.join
       end
 
       def parse_stream(body, &block)
-        full_text = +""
+        full_text = +''
 
         body.each_line do |line|
           line = line.strip
           next if line.empty?
-          next unless line.start_with?("data: ")
+          next unless line.start_with?('data: ')
 
-          data = line.sub("data: ", "")
+          data = line.sub('data: ', '')
           parsed = JSON.parse(data)
 
-          if parsed["type"] == "content_block_delta"
-            text = parsed.dig("delta", "text")
-            if text && !text.empty?
-              full_text << text
-              block.call(text)
-            end
+          next unless parsed['type'] == 'content_block_delta'
+
+          text = parsed.dig('delta', 'text')
+          if text && !text.empty?
+            full_text << text
+            block.call(text)
           end
         end
 

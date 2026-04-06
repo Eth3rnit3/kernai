@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Kernai
   class Skill
     attr_reader :name, :description_text, :inputs, :execute_block
@@ -90,6 +92,7 @@ module Kernai
           unless value.is_a?(spec[:type])
             raise ArgumentError, "Expected #{name} to be #{spec[:type]}, got #{value.class}"
           end
+
           result[name] = value
         elsif spec[:default] != :__no_default__
           result[name] = spec[:default]

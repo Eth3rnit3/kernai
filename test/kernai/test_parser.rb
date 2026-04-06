@@ -1,4 +1,6 @@
-require_relative "../test_helper"
+# frozen_string_literal: true
+
+require_relative '../test_helper'
 
 class TestParser < Minitest::Test
   include Kernai::TestHelpers
@@ -12,7 +14,7 @@ class TestParser < Minitest::Test
     assert_equal 1, result[:blocks].length
     block = result[:blocks].first
     assert_equal :command, block.type
-    assert_equal "ls -la", block.content
+    assert_equal 'ls -la', block.content
     assert_nil block.name
   end
 
@@ -22,8 +24,8 @@ class TestParser < Minitest::Test
 
     block = result[:blocks].first
     assert_equal :command, block.type
-    assert_equal "deploy", block.name
-    assert_equal "run deploy", block.content
+    assert_equal 'deploy', block.name
+    assert_equal 'run deploy', block.content
   end
 
   # -- Multiple blocks --
@@ -34,7 +36,7 @@ class TestParser < Minitest::Test
 
     assert_equal 2, result[:blocks].length
     assert_equal :command, result[:blocks][0].type
-    assert_equal "ls", result[:blocks][0].content
+    assert_equal 'ls', result[:blocks][0].content
     assert_equal :json, result[:blocks][1].type
     assert_equal '{"a":1}', result[:blocks][1].content
   end
@@ -47,7 +49,7 @@ class TestParser < Minitest::Test
 
     assert_equal 1, result[:blocks].length
     assert_equal 1, result[:text_segments].length
-    assert_equal "Here is the output: ", result[:text_segments].first
+    assert_equal 'Here is the output: ', result[:text_segments].first
   end
 
   def test_parse_text_after_block
@@ -56,7 +58,7 @@ class TestParser < Minitest::Test
 
     assert_equal 1, result[:blocks].length
     assert_equal 1, result[:text_segments].length
-    assert_equal " That is the answer.", result[:text_segments].first
+    assert_equal ' That is the answer.', result[:text_segments].first
   end
 
   def test_parse_text_between_blocks
@@ -65,7 +67,7 @@ class TestParser < Minitest::Test
 
     assert_equal 2, result[:blocks].length
     assert_equal 1, result[:text_segments].length
-    assert_equal " Then we do: ", result[:text_segments].first
+    assert_equal ' Then we do: ', result[:text_segments].first
   end
 
   def test_parse_text_before_between_and_after
@@ -74,15 +76,15 @@ class TestParser < Minitest::Test
 
     assert_equal 2, result[:blocks].length
     assert_equal 3, result[:text_segments].length
-    assert_equal "Intro ", result[:text_segments][0]
-    assert_equal " Middle ", result[:text_segments][1]
-    assert_equal " End", result[:text_segments][2]
+    assert_equal 'Intro ', result[:text_segments][0]
+    assert_equal ' Middle ', result[:text_segments][1]
+    assert_equal ' End', result[:text_segments][2]
   end
 
   # -- Edge cases --
 
   def test_parse_no_blocks
-    text = "Just some plain text without any blocks."
+    text = 'Just some plain text without any blocks.'
     result = Kernai::Parser.parse(text)
 
     assert_empty result[:blocks]
@@ -91,7 +93,7 @@ class TestParser < Minitest::Test
   end
 
   def test_parse_empty_string
-    result = Kernai::Parser.parse("")
+    result = Kernai::Parser.parse('')
 
     assert_empty result[:blocks]
     assert_empty result[:text_segments]
@@ -134,7 +136,7 @@ class TestParser < Minitest::Test
 
     assert_equal 1, result[:blocks].size
     assert_equal :final, result[:blocks][0].type
-    assert_equal "The answer is 42.", result[:blocks][0].content
+    assert_equal 'The answer is 42.', result[:blocks][0].content
   end
 
   def test_parse_shorthand_command_with_name
@@ -143,8 +145,8 @@ class TestParser < Minitest::Test
 
     assert_equal 1, result[:blocks].size
     assert_equal :command, result[:blocks][0].type
-    assert_equal "weather", result[:blocks][0].name
-    assert_equal "London", result[:blocks][0].content
+    assert_equal 'weather', result[:blocks][0].name
+    assert_equal 'London', result[:blocks][0].content
   end
 
   def test_parse_shorthand_multiple_types
@@ -154,7 +156,7 @@ class TestParser < Minitest::Test
     assert_equal 3, result[:blocks].size
     assert_equal :plan, result[:blocks][0].type
     assert_equal :command, result[:blocks][1].type
-    assert_equal "search", result[:blocks][1].name
+    assert_equal 'search', result[:blocks][1].name
     assert_equal :final, result[:blocks][2].type
   end
 
@@ -164,8 +166,8 @@ class TestParser < Minitest::Test
 
     assert_equal 1, result[:blocks].size
     assert_equal 2, result[:text_segments].size
-    assert_equal "Before ", result[:text_segments][0]
-    assert_equal " after", result[:text_segments][1]
+    assert_equal 'Before ', result[:text_segments][0]
+    assert_equal ' after', result[:text_segments][1]
   end
 
   def test_parse_mixed_canonical_and_shorthand
@@ -183,7 +185,7 @@ class TestParser < Minitest::Test
     result = Kernai::Parser.parse(text)
 
     assert_equal 1, result[:blocks].size
-    assert_includes result[:blocks][0].content, "Line 1"
-    assert_includes result[:blocks][0].content, "Line 2"
+    assert_includes result[:blocks][0].content, 'Line 1'
+    assert_includes result[:blocks][0].content, 'Line 2'
   end
 end

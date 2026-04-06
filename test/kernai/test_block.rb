@@ -1,4 +1,6 @@
-require_relative "../test_helper"
+# frozen_string_literal: true
+
+require_relative '../test_helper'
 
 class TestBlock < Minitest::Test
   include Kernai::TestHelpers
@@ -11,21 +13,21 @@ class TestBlock < Minitest::Test
   # -- Creation and attributes --
 
   def test_block_creation_with_required_attributes
-    block = Kernai::Block.new(type: :command, content: "ls -la")
+    block = Kernai::Block.new(type: :command, content: 'ls -la')
     assert_equal :command, block.type
-    assert_equal "ls -la", block.content
+    assert_equal 'ls -la', block.content
     assert_nil block.name
   end
 
   def test_block_creation_with_name
-    block = Kernai::Block.new(type: :command, content: "run", name: "deploy")
+    block = Kernai::Block.new(type: :command, content: 'run', name: 'deploy')
     assert_equal :command, block.type
-    assert_equal "run", block.content
-    assert_equal "deploy", block.name
+    assert_equal 'run', block.content
+    assert_equal 'deploy', block.name
   end
 
   def test_block_type_is_symbol
-    block = Kernai::Block.new(type: "json", content: "{}")
+    block = Kernai::Block.new(type: 'json', content: '{}')
     assert_equal :json, block.type
   end
 
@@ -58,7 +60,7 @@ class TestBlock < Minitest::Test
 
     handler = Kernai::Block.handler_for(:json)
     assert_instance_of Proc, handler
-    assert_equal "hello", handler.call("  hello  ", nil)
+    assert_equal 'hello', handler.call('  hello  ', nil)
   end
 
   def test_reset_handlers_clears_all
@@ -72,15 +74,15 @@ class TestBlock < Minitest::Test
   end
 
   def test_define_handler_overwrites_previous
-    Kernai::Block.define(:command) { |_c, _| "first" }
-    Kernai::Block.define(:command) { |_c, _| "second" }
+    Kernai::Block.define(:command) { |_c, _| 'first' }
+    Kernai::Block.define(:command) { |_c, _| 'second' }
 
     handler = Kernai::Block.handler_for(:command)
-    assert_equal "second", handler.call(nil, nil)
+    assert_equal 'second', handler.call(nil, nil)
   end
 
   def test_handler_for_accepts_string_type
     Kernai::Block.define(:error) { |c, _| c }
-    assert_instance_of Proc, Kernai::Block.handler_for("error")
+    assert_instance_of Proc, Kernai::Block.handler_for('error')
   end
 end

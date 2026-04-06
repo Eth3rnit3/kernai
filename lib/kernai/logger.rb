@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Kernai
   class Logger
     attr_accessor :output
@@ -35,7 +37,7 @@ module Kernai
     end
 
     def format_entry(entry)
-      parts = entry.reject { |k, _| k == :level || k == :timestamp }.map { |k, v| "#{k}=#{v}" }.join(" ")
+      parts = entry.reject { |k, _| %i[level timestamp].include?(k) }.map { |k, v| "#{k}=#{v}" }.join(' ')
       "[Kernai] #{entry[:level]} #{parts}"
     end
   end

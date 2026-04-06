@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Kernai
   class Message
     attr_reader :role, :content

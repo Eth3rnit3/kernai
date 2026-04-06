@@ -1,11 +1,13 @@
+# frozen_string_literal: true
+
 module Kernai
   module Parser
     # Canonical: <block type="TYPE" name="NAME">content</block>
-    BLOCK_PATTERN = /<block\s+type="([^"]+)"(?:\s+name="([^"]*)")?\s*>(.*?)<\/block>/m
+    BLOCK_PATTERN = %r{<block\s+type="([^"]+)"(?:\s+name="([^"]*)")?\s*>(.*?)</block>}m
 
     # Shorthand: <TYPE name="NAME">content</TYPE> (e.g. <final>answer</final>)
-    SHORTHAND_TYPES = Block::TYPES.map(&:to_s).join("|")
-    SHORTHAND_PATTERN = /<(#{SHORTHAND_TYPES})(?:\s+name="([^"]*)")?\s*>(.*?)<\/\1>/m
+    SHORTHAND_TYPES = Block::TYPES.map(&:to_s).join('|')
+    SHORTHAND_PATTERN = %r{<(#{SHORTHAND_TYPES})(?:\s+name="([^"]*)")?\s*>(.*?)</\1>}m
 
     class << self
       def parse(text)
@@ -24,6 +26,7 @@ module Kernai
           m = Regexp.last_match
           # Skip if this region overlaps with an already-found canonical block
           next if matches.any? { |existing| m.begin(0) >= existing[:pos] && m.begin(0) < existing[:end_pos] }
+
           matches << { pos: m.begin(0), end_pos: m.end(0), type: m[1], name: m[2], content: m[3] }
         end
 

@@ -1,16 +1,19 @@
-require_relative "kernai/version"
-require_relative "kernai/config"
-require_relative "kernai/logger"
-require_relative "kernai/message"
-require_relative "kernai/block"
-require_relative "kernai/parser"
-require_relative "kernai/stream_parser"
-require_relative "kernai/skill"
-require_relative "kernai/provider"
-require_relative "kernai/instruction_builder"
-require_relative "kernai/agent"
-require_relative "kernai/kernel"
-require_relative "kernai/mock/provider"
+# frozen_string_literal: true
+
+require_relative 'kernai/version'
+require_relative 'kernai/config'
+require_relative 'kernai/logger'
+require_relative 'kernai/message'
+require_relative 'kernai/block'
+require_relative 'kernai/parser'
+require_relative 'kernai/stream_parser'
+require_relative 'kernai/skill'
+require_relative 'kernai/provider'
+require_relative 'kernai/instruction_builder'
+require_relative 'kernai/recorder'
+require_relative 'kernai/agent'
+require_relative 'kernai/kernel'
+require_relative 'kernai/mock/provider'
 
 module Kernai
   class Error < StandardError; end

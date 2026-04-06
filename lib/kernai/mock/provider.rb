@@ -30,9 +30,7 @@ module Kernai
         response = resolve_response(messages, model)
         @call_count += 1
 
-        if block
-          response.each_char { |c| block.call(c) }
-        end
+        response.each_char { |c| block.call(c) } if block
 
         response
       end
@@ -61,7 +59,7 @@ module Kernai
           index = [@call_count, @responses.size - 1].min
           @responses[index]
         else
-          ""
+          ''
         end
       end
     end

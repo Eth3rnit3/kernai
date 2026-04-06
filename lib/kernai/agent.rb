@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Kernai
   class Agent
     attr_reader :model, :max_steps

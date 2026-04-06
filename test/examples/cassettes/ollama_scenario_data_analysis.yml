@@ -1,0 +1,385 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://api.ollama.com/api/chat
+    body:
+      encoding: UTF-8
+      string: '{"model":"gemma3:27b","messages":[{"role":"system","content":"You are
+        a data analyst assistant. You have access to a user database and a calculator.\nYou
+        have NO knowledge of what users exist in the database. You MUST query the
+        database to get any user data.\nYou MUST use the calculator for ALL arithmetic
+        — never compute numbers yourself.\n\nYour workflow for ANY data question:\n1.
+        FIRST: query the database with user_database skill\n2. THEN: use calculator
+        skill for any math (counts, percentages, averages)\n3. FINALLY: provide your
+        answer in a final block\n\nYou MUST respond ONLY using XML blocks with this
+        EXACT syntax:\n<block type=\"TYPE\">content</block>\n\nCRITICAL: The tag name
+        is always \"block\" with a type attribute. Never use shorthand like <final>
+        or <command>.\n\nAvailable block types:\n- command: execute a skill. Requires
+        a name attribute: <block type=\"command\" name=\"SKILL\">params</block>\n-
+        final: your final answer: <block type=\"final\">Your answer here</block>\n-
+        plan: optional reasoning: <block type=\"plan\">Your thinking</block>\n\nAfter
+        receiving a skill result, analyze it and either use another skill or provide
+        your final answer.\n\nAvailable skills:\n- user_database: Fetch all users.
+        Usage: <block type=\"command\" name=\"user_database\">fetch all</block>\n  Returns
+        a JSON array of users with fields: id, name, email, status (active/inactive),
+        plan (free/premium), signup_date\n- calculator: Math computation. Usage: <block
+        type=\"command\" name=\"calculator\">EXPRESSION</block>\n  Use arithmetic
+        operators: +, -, *, /. Example: <block type=\"command\" name=\"calculator\">2.0
+        / 4</block>\n  Returns the numeric result as a string\n"},{"role":"user","content":"What
+        percentage of active users are on the premium plan?"}],"stream":true}'
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Date:
+      - Mon, 06 Apr 2026 21:12:33 GMT
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Set-Cookie:
+      - aid=faa4ce7f-7751-4e13-a50b-4847e5d218b5; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 7cb5adac31238c58530a172859b7efbf55c94869
+      X-Build-Time:
+      - '2026-04-06T13:06:07-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - 2c13428f-85c8-4939-a542-f90e2442103e
+      Server:
+      - cloudflare
+      Traceparent:
+      - 00-92d4672cbbf3e4ba6a23612b2c01e3dc-75fd1dee3c7efe8f-00
+      X-Cloud-Trace-Context:
+      - 92d4672cbbf3e4ba6a23612b2c01e3dc/8501984580599742095
+      Via:
+      - 1.1 google
+      Cf-Cache-Status:
+      - DYNAMIC
+      Cf-Ray:
+      - 9e83ca92bc8c0e3e-MXP
+    body:
+      encoding: ASCII-8BIT
+      string: |
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:33.272982423Z","message":{"role":"assistant","content":"\u003cblock type=\"plan\"\u003eFirst, I need to fetch all"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:33.489053606Z","message":{"role":"assistant","content":" user data from the database. Then, I'll count the total number of active"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:33.706916016Z","message":{"role":"assistant","content":" users and the number of active users on the premium plan. Finally, I'll"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:33.894044215Z","message":{"role":"assistant","content":" calculate the percentage of active users who are on the premium plan using the calculator.\u003c/block"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:33.955943737Z","message":{"role":"assistant","content":"\u003e\n\u003cblock type=\"command\" name=\"user_database\"\u003efetch all\u003c/"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:33.955991745Z","message":{"role":"assistant","content":"block\u003e"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:33.956029959Z","message":{"role":"assistant","content":""},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:34.076141677Z","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop","total_duration":1394114168,"prompt_eval_count":403,"eval_count":84}
+  recorded_at: Mon, 06 Apr 2026 21:12:34 GMT
+- request:
+    method: post
+    uri: https://api.ollama.com/api/chat
+    body:
+      encoding: UTF-8
+      string: '{"model":"gemma3:27b","messages":[{"role":"system","content":"You are
+        a data analyst assistant. You have access to a user database and a calculator.\nYou
+        have NO knowledge of what users exist in the database. You MUST query the
+        database to get any user data.\nYou MUST use the calculator for ALL arithmetic
+        — never compute numbers yourself.\n\nYour workflow for ANY data question:\n1.
+        FIRST: query the database with user_database skill\n2. THEN: use calculator
+        skill for any math (counts, percentages, averages)\n3. FINALLY: provide your
+        answer in a final block\n\nYou MUST respond ONLY using XML blocks with this
+        EXACT syntax:\n<block type=\"TYPE\">content</block>\n\nCRITICAL: The tag name
+        is always \"block\" with a type attribute. Never use shorthand like <final>
+        or <command>.\n\nAvailable block types:\n- command: execute a skill. Requires
+        a name attribute: <block type=\"command\" name=\"SKILL\">params</block>\n-
+        final: your final answer: <block type=\"final\">Your answer here</block>\n-
+        plan: optional reasoning: <block type=\"plan\">Your thinking</block>\n\nAfter
+        receiving a skill result, analyze it and either use another skill or provide
+        your final answer.\n\nAvailable skills:\n- user_database: Fetch all users.
+        Usage: <block type=\"command\" name=\"user_database\">fetch all</block>\n  Returns
+        a JSON array of users with fields: id, name, email, status (active/inactive),
+        plan (free/premium), signup_date\n- calculator: Math computation. Usage: <block
+        type=\"command\" name=\"calculator\">EXPRESSION</block>\n  Use arithmetic
+        operators: +, -, *, /. Example: <block type=\"command\" name=\"calculator\">2.0
+        / 4</block>\n  Returns the numeric result as a string\n"},{"role":"user","content":"What
+        percentage of active users are on the premium plan?"},{"role":"assistant","content":"<block
+        type=\"plan\">First, I need to fetch all user data from the database. Then,
+        I''ll count the total number of active users and the number of active users
+        on the premium plan. Finally, I''ll calculate the percentage of active users
+        who are on the premium plan using the calculator.</block>\n<block type=\"command\"
+        name=\"user_database\">fetch all</block>"},{"role":"user","content":"<block
+        type=\"result\" name=\"user_database\">[{\"id\":1,\"name\":\"Alice Martin\",\"email\":\"alice@example.com\",\"status\":\"active\",\"plan\":\"premium\",\"signup_date\":\"2024-01-15\"},{\"id\":2,\"name\":\"Bob
+        Smith\",\"email\":\"bob@example.com\",\"status\":\"active\",\"plan\":\"free\",\"signup_date\":\"2024-03-22\"},{\"id\":3,\"name\":\"Charlie
+        Brown\",\"email\":\"charlie@example.com\",\"status\":\"inactive\",\"plan\":\"premium\",\"signup_date\":\"2023-11-08\"},{\"id\":4,\"name\":\"Diana
+        Prince\",\"email\":\"diana@example.com\",\"status\":\"active\",\"plan\":\"premium\",\"signup_date\":\"2024-06-01\"},{\"id\":5,\"name\":\"Eve
+        Wilson\",\"email\":\"eve@example.com\",\"status\":\"active\",\"plan\":\"free\",\"signup_date\":\"2024-07-19\"},{\"id\":6,\"name\":\"Frank
+        Lee\",\"email\":\"frank@example.com\",\"status\":\"inactive\",\"plan\":\"free\",\"signup_date\":\"2023-09-30\"}]</block>"}],"stream":true}'
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Date:
+      - Mon, 06 Apr 2026 21:12:35 GMT
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Set-Cookie:
+      - aid=63bbcca2-3dc5-4d3c-a536-452f949c0c19; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 7cb5adac31238c58530a172859b7efbf55c94869
+      X-Build-Time:
+      - '2026-04-06T13:06:07-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - 573f28a3-e499-44ad-915a-28cd686bc98e
+      Server:
+      - cloudflare
+      X-Cloud-Trace-Context:
+      - c9c5c2881ff338265c7090613e1a55ac/2091907472703913514
+      Traceparent:
+      - 00-c9c5c2881ff338265c7090613e1a55ac-1d07f2c355807e2a-00
+      Via:
+      - 1.1 google
+      Cf-Cache-Status:
+      - DYNAMIC
+      Cf-Ray:
+      - 9e83ca9dfe6c4c42-MXP
+    body:
+      encoding: ASCII-8BIT
+      string: !binary |-
+        eyJtb2RlbCI6ImdlbW1hMzoyN2IiLCJjcmVhdGVkX2F0IjoiMjAyNi0wNC0wNlQyMToxMjozNS4wMTYzMjI1MTFaIiwibWVzc2FnZSI6eyJyb2xlIjoiYXNzaXN0YW50IiwiY29udGVudCI6Ilx1MDAzY2Jsb2NrIHR5cGU9XCJwbGFuXCJcdTAwM2VOb3cgdGhhdCBJIGhhdmUgdGhlIHVzZXIgZGF0YSwgSSBuZWVkIHRvIn0sImRvbmUiOmZhbHNlfQp7Im1vZGVsIjoiZ2VtbWEzOjI3YiIsImNyZWF0ZWRfYXQiOiIyMDI2LTA0LTA2VDIxOjEyOjM1LjIyNTM5MDc1OFoiLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50IjoiIGNvdW50IHRoZSBudW1iZXIgb2YgYWN0aXZlIHVzZXJzIGFuZCB0aGUgbnVtYmVyIG9mIGFjdGl2ZSBwcmVtaXVtIHVzZXJzLiBUaGVuIEnigJlsbCJ9LCJkb25lIjpmYWxzZX0KeyJtb2RlbCI6ImdlbW1hMzoyN2IiLCJjcmVhdGVkX2F0IjoiMjAyNi0wNC0wNlQyMToxMjozNS40MzY0MTM3OTZaIiwibWVzc2FnZSI6eyJyb2xlIjoiYXNzaXN0YW50IiwiY29udGVudCI6IiBjYWxjdWxhdGUgdGhlIHBlcmNlbnRhZ2UuXG5Ub3RhbCBhY3RpdmUgdXNlcnM6IDQgKEFsaWNlLCBCb2IsIERpYW5hLCJ9LCJkb25lIjpmYWxzZX0KeyJtb2RlbCI6ImdlbW1hMzoyN2IiLCJjcmVhdGVkX2F0IjoiMjAyNi0wNC0wNlQyMToxMjozNS42NDQ0NTI2OTZaIiwibWVzc2FnZSI6eyJyb2xlIjoiYXNzaXN0YW50IiwiY29udGVudCI6IiBFdmUpXG5BY3RpdmUgcHJlbWl1bSB1c2VyczogMiAoQWxpY2UsIERpYW5hKVxuUGVyY2VudGFnZTogKCJ9LCJkb25lIjpmYWxzZX0KeyJtb2RlbCI6ImdlbW1hMzoyN2IiLCJjcmVhdGVkX2F0IjoiMjAyNi0wNC0wNlQyMToxMjozNS44NDcxNTE5N1oiLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50IjoiMiAvIDQpICogMTAwXHUwMDNjL2Jsb2NrXHUwMDNlXG5cdTAwM2NibG9jayB0eXBlPVwiIn0sImRvbmUiOmZhbHNlfQp7Im1vZGVsIjoiZ2VtbWEzOjI3YiIsImNyZWF0ZWRfYXQiOiIyMDI2LTA0LTA2VDIxOjEyOjM1Ljg1OTMyODk2NVoiLCJtZXNzYWdlIjp7InJvbGUiOiJhc3Npc3RhbnQiLCJjb250ZW50IjoiY29tbWFuZFwiIG5hbWU9XCJjYWxjdWxhdG9yXCJcdTAwM2UyLjAgLyA0LjBcdTAwM2MvYmxvY2tcdTAwM2UifSwiZG9uZSI6ZmFsc2V9CnsibW9kZWwiOiJnZW1tYTM6MjdiIiwiY3JlYXRlZF9hdCI6IjIwMjYtMDQtMDZUMjE6MTI6MzUuODcxNjk4NDQyWiIsIm1lc3NhZ2UiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOiIifSwiZG9uZSI6ZmFsc2V9CnsibW9kZWwiOiJnZW1tYTM6MjdiIiwiY3JlYXRlZF9hdCI6IjIwMjYtMDQtMDZUMjE6MTI6MzUuOTQ1MTk3Njg2WiIsIm1lc3NhZ2UiOnsicm9sZSI6ImFzc2lzdGFudCIsImNvbnRlbnQiOiIifSwiZG9uZSI6dHJ1ZSwiZG9uZV9yZWFzb24iOiJzdG9wIiwidG90YWxfZHVyYXRpb24iOjE0NzgzMjcxMjcsInByb21wdF9ldmFsX2NvdW50Ijo3NTYsImV2YWxfY291bnQiOjEwN30K
+  recorded_at: Mon, 06 Apr 2026 21:12:35 GMT
+- request:
+    method: post
+    uri: https://api.ollama.com/api/chat
+    body:
+      encoding: UTF-8
+      string: '{"model":"gemma3:27b","messages":[{"role":"system","content":"You are
+        a data analyst assistant. You have access to a user database and a calculator.\nYou
+        have NO knowledge of what users exist in the database. You MUST query the
+        database to get any user data.\nYou MUST use the calculator for ALL arithmetic
+        — never compute numbers yourself.\n\nYour workflow for ANY data question:\n1.
+        FIRST: query the database with user_database skill\n2. THEN: use calculator
+        skill for any math (counts, percentages, averages)\n3. FINALLY: provide your
+        answer in a final block\n\nYou MUST respond ONLY using XML blocks with this
+        EXACT syntax:\n<block type=\"TYPE\">content</block>\n\nCRITICAL: The tag name
+        is always \"block\" with a type attribute. Never use shorthand like <final>
+        or <command>.\n\nAvailable block types:\n- command: execute a skill. Requires
+        a name attribute: <block type=\"command\" name=\"SKILL\">params</block>\n-
+        final: your final answer: <block type=\"final\">Your answer here</block>\n-
+        plan: optional reasoning: <block type=\"plan\">Your thinking</block>\n\nAfter
+        receiving a skill result, analyze it and either use another skill or provide
+        your final answer.\n\nAvailable skills:\n- user_database: Fetch all users.
+        Usage: <block type=\"command\" name=\"user_database\">fetch all</block>\n  Returns
+        a JSON array of users with fields: id, name, email, status (active/inactive),
+        plan (free/premium), signup_date\n- calculator: Math computation. Usage: <block
+        type=\"command\" name=\"calculator\">EXPRESSION</block>\n  Use arithmetic
+        operators: +, -, *, /. Example: <block type=\"command\" name=\"calculator\">2.0
+        / 4</block>\n  Returns the numeric result as a string\n"},{"role":"user","content":"What
+        percentage of active users are on the premium plan?"},{"role":"assistant","content":"<block
+        type=\"plan\">First, I need to fetch all user data from the database. Then,
+        I''ll count the total number of active users and the number of active users
+        on the premium plan. Finally, I''ll calculate the percentage of active users
+        who are on the premium plan using the calculator.</block>\n<block type=\"command\"
+        name=\"user_database\">fetch all</block>"},{"role":"user","content":"<block
+        type=\"result\" name=\"user_database\">[{\"id\":1,\"name\":\"Alice Martin\",\"email\":\"alice@example.com\",\"status\":\"active\",\"plan\":\"premium\",\"signup_date\":\"2024-01-15\"},{\"id\":2,\"name\":\"Bob
+        Smith\",\"email\":\"bob@example.com\",\"status\":\"active\",\"plan\":\"free\",\"signup_date\":\"2024-03-22\"},{\"id\":3,\"name\":\"Charlie
+        Brown\",\"email\":\"charlie@example.com\",\"status\":\"inactive\",\"plan\":\"premium\",\"signup_date\":\"2023-11-08\"},{\"id\":4,\"name\":\"Diana
+        Prince\",\"email\":\"diana@example.com\",\"status\":\"active\",\"plan\":\"premium\",\"signup_date\":\"2024-06-01\"},{\"id\":5,\"name\":\"Eve
+        Wilson\",\"email\":\"eve@example.com\",\"status\":\"active\",\"plan\":\"free\",\"signup_date\":\"2024-07-19\"},{\"id\":6,\"name\":\"Frank
+        Lee\",\"email\":\"frank@example.com\",\"status\":\"inactive\",\"plan\":\"free\",\"signup_date\":\"2023-09-30\"}]</block>"},{"role":"assistant","content":"<block
+        type=\"plan\">Now that I have the user data, I need to count the number of
+        active users and the number of active premium users. Then I’ll calculate the
+        percentage.\nTotal active users: 4 (Alice, Bob, Diana, Eve)\nActive premium
+        users: 2 (Alice, Diana)\nPercentage: (2 / 4) * 100</block>\n<block type=\"command\"
+        name=\"calculator\">2.0 / 4.0</block>"},{"role":"user","content":"<block type=\"result\"
+        name=\"calculator\">0.5</block>"}],"stream":true}'
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Date:
+      - Mon, 06 Apr 2026 21:12:37 GMT
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Set-Cookie:
+      - aid=7bdf7329-c5fc-4170-bd15-d25c6b9e8b34; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 7cb5adac31238c58530a172859b7efbf55c94869
+      X-Build-Time:
+      - '2026-04-06T13:06:07-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - bb211cdf-eb54-449a-9906-08845984decf
+      Server:
+      - cloudflare
+      Traceparent:
+      - 00-e9de77a361d923e40bfb43eca4090c1a-3e4d0f6ee3bb5f56-00
+      X-Cloud-Trace-Context:
+      - e9de77a361d923e40bfb43eca4090c1a/4489261372499779414
+      Via:
+      - 1.1 google
+      Cf-Cache-Status:
+      - DYNAMIC
+      Cf-Ray:
+      - 9e83caa9bad70e61-MXP
+    body:
+      encoding: ASCII-8BIT
+      string: |
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:36.945087623Z","message":{"role":"assistant","content":"\u003cblock type=\"plan\"\u003eNow I have the result of the division (0.5"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:37.149228983Z","message":{"role":"assistant","content":"). I need to multiply this by 100 to get the percentage.\u003c/block"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:37.236273533Z","message":{"role":"assistant","content":"\u003e\n\u003cblock type=\"command\" name=\"calculator\"\u003e0.5 * "},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:37.240825692Z","message":{"role":"assistant","content":"100\u003c/block\u003e"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:37.248745524Z","message":{"role":"assistant","content":""},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:37.346615072Z","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop","total_duration":998658265,"prompt_eval_count":888,"eval_count":59}
+  recorded_at: Mon, 06 Apr 2026 21:12:37 GMT
+- request:
+    method: post
+    uri: https://api.ollama.com/api/chat
+    body:
+      encoding: UTF-8
+      string: '{"model":"gemma3:27b","messages":[{"role":"system","content":"You are
+        a data analyst assistant. You have access to a user database and a calculator.\nYou
+        have NO knowledge of what users exist in the database. You MUST query the
+        database to get any user data.\nYou MUST use the calculator for ALL arithmetic
+        — never compute numbers yourself.\n\nYour workflow for ANY data question:\n1.
+        FIRST: query the database with user_database skill\n2. THEN: use calculator
+        skill for any math (counts, percentages, averages)\n3. FINALLY: provide your
+        answer in a final block\n\nYou MUST respond ONLY using XML blocks with this
+        EXACT syntax:\n<block type=\"TYPE\">content</block>\n\nCRITICAL: The tag name
+        is always \"block\" with a type attribute. Never use shorthand like <final>
+        or <command>.\n\nAvailable block types:\n- command: execute a skill. Requires
+        a name attribute: <block type=\"command\" name=\"SKILL\">params</block>\n-
+        final: your final answer: <block type=\"final\">Your answer here</block>\n-
+        plan: optional reasoning: <block type=\"plan\">Your thinking</block>\n\nAfter
+        receiving a skill result, analyze it and either use another skill or provide
+        your final answer.\n\nAvailable skills:\n- user_database: Fetch all users.
+        Usage: <block type=\"command\" name=\"user_database\">fetch all</block>\n  Returns
+        a JSON array of users with fields: id, name, email, status (active/inactive),
+        plan (free/premium), signup_date\n- calculator: Math computation. Usage: <block
+        type=\"command\" name=\"calculator\">EXPRESSION</block>\n  Use arithmetic
+        operators: +, -, *, /. Example: <block type=\"command\" name=\"calculator\">2.0
+        / 4</block>\n  Returns the numeric result as a string\n"},{"role":"user","content":"What
+        percentage of active users are on the premium plan?"},{"role":"assistant","content":"<block
+        type=\"plan\">First, I need to fetch all user data from the database. Then,
+        I''ll count the total number of active users and the number of active users
+        on the premium plan. Finally, I''ll calculate the percentage of active users
+        who are on the premium plan using the calculator.</block>\n<block type=\"command\"
+        name=\"user_database\">fetch all</block>"},{"role":"user","content":"<block
+        type=\"result\" name=\"user_database\">[{\"id\":1,\"name\":\"Alice Martin\",\"email\":\"alice@example.com\",\"status\":\"active\",\"plan\":\"premium\",\"signup_date\":\"2024-01-15\"},{\"id\":2,\"name\":\"Bob
+        Smith\",\"email\":\"bob@example.com\",\"status\":\"active\",\"plan\":\"free\",\"signup_date\":\"2024-03-22\"},{\"id\":3,\"name\":\"Charlie
+        Brown\",\"email\":\"charlie@example.com\",\"status\":\"inactive\",\"plan\":\"premium\",\"signup_date\":\"2023-11-08\"},{\"id\":4,\"name\":\"Diana
+        Prince\",\"email\":\"diana@example.com\",\"status\":\"active\",\"plan\":\"premium\",\"signup_date\":\"2024-06-01\"},{\"id\":5,\"name\":\"Eve
+        Wilson\",\"email\":\"eve@example.com\",\"status\":\"active\",\"plan\":\"free\",\"signup_date\":\"2024-07-19\"},{\"id\":6,\"name\":\"Frank
+        Lee\",\"email\":\"frank@example.com\",\"status\":\"inactive\",\"plan\":\"free\",\"signup_date\":\"2023-09-30\"}]</block>"},{"role":"assistant","content":"<block
+        type=\"plan\">Now that I have the user data, I need to count the number of
+        active users and the number of active premium users. Then I’ll calculate the
+        percentage.\nTotal active users: 4 (Alice, Bob, Diana, Eve)\nActive premium
+        users: 2 (Alice, Diana)\nPercentage: (2 / 4) * 100</block>\n<block type=\"command\"
+        name=\"calculator\">2.0 / 4.0</block>"},{"role":"user","content":"<block type=\"result\"
+        name=\"calculator\">0.5</block>"},{"role":"assistant","content":"<block type=\"plan\">Now
+        I have the result of the division (0.5). I need to multiply this by 100 to
+        get the percentage.</block>\n<block type=\"command\" name=\"calculator\">0.5
+        * 100</block>"},{"role":"user","content":"<block type=\"result\" name=\"calculator\">50.0</block>"}],"stream":true}'
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Date:
+      - Mon, 06 Apr 2026 21:12:38 GMT
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Set-Cookie:
+      - aid=60044600-8f44-4984-a2ea-37773f787c4c; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 7cb5adac31238c58530a172859b7efbf55c94869
+      X-Build-Time:
+      - '2026-04-06T13:06:07-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - 7a1a92a3-550f-4772-b637-598fb7ad1c0a
+      Server:
+      - cloudflare
+      X-Cloud-Trace-Context:
+      - 47b8ef266fb5916306bab167b1415f0c/155191049380146091
+      Traceparent:
+      - 00-47b8ef266fb5916306bab167b1415f0c-0227596fea9fabab-00
+      Via:
+      - 1.1 google
+      Cf-Cache-Status:
+      - DYNAMIC
+      Cf-Ray:
+      - 9e83cab27d79a01f-MXP
+    body:
+      encoding: ASCII-8BIT
+      string: |
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:38.033488637Z","message":{"role":"assistant","content":"\u003cblock type=\"final\"\u003e50.0%\u003c/block\u003e"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:38.041065922Z","message":{"role":"assistant","content":""},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:38.12324958Z","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop","total_duration":387688527,"prompt_eval_count":973,"eval_count":15}
+  recorded_at: Mon, 06 Apr 2026 21:12:38 GMT
+recorded_with: VCR 6.4.0

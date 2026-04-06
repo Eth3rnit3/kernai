@@ -1,4 +1,6 @@
-require_relative "../test_helper"
+# frozen_string_literal: true
+
+require_relative '../test_helper'
 
 class TestConfig < Minitest::Test
   include Kernai::TestHelpers
@@ -31,8 +33,8 @@ class TestConfig < Minitest::Test
   end
 
   def test_set_allowed_skills
-    Kernai.config.allowed_skills = [:search, :calculate]
-    assert_equal [:search, :calculate], Kernai.config.allowed_skills
+    Kernai.config.allowed_skills = %i[search calculate]
+    assert_equal %i[search calculate], Kernai.config.allowed_skills
   end
 
   def test_set_custom_logger

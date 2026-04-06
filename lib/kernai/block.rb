@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Kernai
   class Block
     TYPES = %i[command json final plan result error].freeze
@@ -8,6 +10,12 @@ module Kernai
       @type = type.to_sym
       @name = name
       @content = content
+    end
+
+    def to_h
+      h = { type: @type, content: @content }
+      h[:name] = @name if @name
+      h
     end
 
     class << self

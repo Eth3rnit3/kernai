@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Kernai
   class InstructionBuilder
     def initialize(base_instructions, skills: nil)
@@ -51,7 +53,7 @@ module Kernai
       skills = resolve_skills
       return nil if skills.empty?
 
-      lines = ["Available skills:"]
+      lines = ['Available skills:']
       skills.each { |skill| lines << format_skill(skill) }
       lines.join("\n")
     end
@@ -83,7 +85,7 @@ module Kernai
         str = "#{name} (#{spec[:type]})"
         str += " default: #{spec[:default]}" unless spec[:default] == :__no_default__
         str
-      end.join(", ")
+      end.join(', ')
     end
 
     def format_usage(skill)
@@ -91,7 +93,7 @@ module Kernai
         input_name = skill.inputs.keys.first
         "<block type=\"command\" name=\"#{skill.name}\">#{input_name} value here</block>"
       else
-        json_example = skill.inputs.map { |k, v| "\"#{k}\": \"...\"" }.join(", ")
+        json_example = skill.inputs.map { |k, _v| "\"#{k}\": \"...\"" }.join(', ')
         "<block type=\"command\" name=\"#{skill.name}\">{#{json_example}}</block>"
       end
     end

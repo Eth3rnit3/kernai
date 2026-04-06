@@ -1,4 +1,6 @@
-require_relative "../test_helper"
+# frozen_string_literal: true
+
+require_relative '../test_helper'
 
 class TestStreamParser < Minitest::Test
   include Kernai::TestHelpers
@@ -19,12 +21,12 @@ class TestStreamParser < Minitest::Test
 
   def test_plain_text_emits_text_chunk
     register_all_callbacks
-    @parser.push("Hello world")
+    @parser.push('Hello world')
     @parser.flush
 
     text_events = @events.select { |e, _| e == :text_chunk }
     combined = text_events.map { |_, d| d }.join
-    assert_equal "Hello world", combined
+    assert_equal 'Hello world', combined
   end
 
   def test_single_block_in_one_chunk
@@ -38,13 +40,13 @@ class TestStreamParser < Minitest::Test
 
     contents = @events.select { |e, _| e == :block_content }
     combined_content = contents.map { |_, d| d }.join
-    assert_equal "ls -la", combined_content
+    assert_equal 'ls -la', combined_content
 
     completes = @events.select { |e, _| e == :block_complete }
     assert_equal 1, completes.length
     assert_instance_of Kernai::Block, completes.first[1]
     assert_equal :command, completes.first[1].type
-    assert_equal "ls -la", completes.first[1].content
+    assert_equal 'ls -la', completes.first[1].content
   end
 
   def test_block_with_name
@@ -52,10 +54,10 @@ class TestStreamParser < Minitest::Test
     @parser.push('<block type="command" name="deploy">run it</block>')
 
     starts = @events.select { |e, _| e == :block_start }
-    assert_equal "deploy", starts.first[1][:name]
+    assert_equal 'deploy', starts.first[1][:name]
 
     completes = @events.select { |e, _| e == :block_complete }
-    assert_equal "deploy", completes.first[1].name
+    assert_equal 'deploy', completes.first[1].name
   end
 
   # -- Chunk splitting --
@@ -63,26 +65,26 @@ class TestStreamParser < Minitest::Test
   def test_tag_split_across_chunks
     register_all_callbacks
 
-    @parser.push("<bl")
+    @parser.push('<bl')
     @parser.push('ock type="command">')
-    @parser.push("hello")
-    @parser.push("</block>")
+    @parser.push('hello')
+    @parser.push('</block>')
 
     completes = @events.select { |e, _| e == :block_complete }
     assert_equal 1, completes.length
     assert_equal :command, completes.first[1].type
-    assert_equal "hello", completes.first[1].content
+    assert_equal 'hello', completes.first[1].content
   end
 
   def test_close_tag_split_across_chunks
     register_all_callbacks
 
     @parser.push('<block type="command">data</bl')
-    @parser.push("ock>")
+    @parser.push('ock>')
 
     completes = @events.select { |e, _| e == :block_complete }
     assert_equal 1, completes.length
-    assert_equal "data", completes.first[1].content
+    assert_equal 'data', completes.first[1].content
   end
 
   def test_content_split_across_chunks
@@ -104,11 +106,11 @@ class TestStreamParser < Minitest::Test
 
     text_events = @events.select { |e, _| e == :text_chunk }
     combined_text = text_events.map { |_, d| d }.join
-    assert_equal "Hello  world", combined_text
+    assert_equal 'Hello  world', combined_text
 
     completes = @events.select { |e, _| e == :block_complete }
     assert_equal 1, completes.length
-    assert_equal "42", completes.first[1].content
+    assert_equal '42', completes.first[1].content
   end
 
   # -- Multiple blocks --
@@ -121,9 +123,9 @@ class TestStreamParser < Minitest::Test
     completes = @events.select { |e, _| e == :block_complete }
     assert_equal 2, completes.length
     assert_equal :plan, completes[0][1].type
-    assert_equal "step 1", completes[0][1].content
+    assert_equal 'step 1', completes[0][1].content
     assert_equal :command, completes[1][1].type
-    assert_equal "go", completes[1][1].content
+    assert_equal 'go', completes[1][1].content
   end
 
   # -- Event callbacks --
@@ -132,7 +134,7 @@ class TestStreamParser < Minitest::Test
     called = false
     @parser.on(:block_complete) { |_data| called = true }
     @parser.push('<block type="command">test</block>')
-    assert called, "block_complete callback should have been called"
+    assert called, 'block_complete callback should have been called'
   end
 
   def test_unregistered_events_are_ignored
@@ -167,13 +169,13 @@ class TestStreamParser < Minitest::Test
 
   def test_flush_emits_remaining_text
     register_all_callbacks
-    @parser.push("some trailing text")
+    @parser.push('some trailing text')
     # text_chunk may have been emitted already since there's no '<'
     @parser.flush
 
     text_events = @events.select { |e, _| e == :text_chunk }
     combined = text_events.map { |_, d| d }.join
-    assert_equal "some trailing text", combined
+    assert_equal 'some trailing text', combined
   end
 
   def test_flush_resets_state_to_text
@@ -188,12 +190,12 @@ class TestStreamParser < Minitest::Test
 
   def test_angle_bracket_not_block_tag
     register_all_callbacks
-    @parser.push("x < y and a > b")
+    @parser.push('x < y and a > b')
     @parser.flush
 
     text_events = @events.select { |e, _| e == :text_chunk }
     combined = text_events.map { |_, d| d }.join
-    assert_equal "x < y and a > b", combined
+    assert_equal 'x < y and a > b', combined
 
     completes = @events.select { |e, _| e == :block_complete }
     assert_empty completes
@@ -205,7 +207,7 @@ class TestStreamParser < Minitest::Test
 
     completes = @events.select { |e, _| e == :block_complete }
     assert_equal 1, completes.length
-    assert_equal "", completes.first[1].content
+    assert_equal '', completes.first[1].content
   end
 
   def test_single_char_chunks
@@ -216,7 +218,7 @@ class TestStreamParser < Minitest::Test
     completes = @events.select { |e, _| e == :block_complete }
     assert_equal 1, completes.length
     assert_equal :command, completes.first[1].type
-    assert_equal "hi", completes.first[1].content
+    assert_equal 'hi', completes.first[1].content
   end
 
   # -- Shorthand format --
@@ -228,7 +230,7 @@ class TestStreamParser < Minitest::Test
     completes = @events.select { |e, _| e == :block_complete }
     assert_equal 1, completes.length
     assert_equal :final, completes.first[1].type
-    assert_equal "The answer", completes.first[1].content
+    assert_equal 'The answer', completes.first[1].content
   end
 
   def test_shorthand_command_with_name
@@ -238,8 +240,8 @@ class TestStreamParser < Minitest::Test
     completes = @events.select { |e, _| e == :block_complete }
     assert_equal 1, completes.length
     assert_equal :command, completes.first[1].type
-    assert_equal "weather", completes.first[1].name
-    assert_equal "London", completes.first[1].content
+    assert_equal 'weather', completes.first[1].name
+    assert_equal 'London', completes.first[1].content
   end
 
   def test_shorthand_chunked
@@ -252,8 +254,8 @@ class TestStreamParser < Minitest::Test
     completes = @events.select { |e, _| e == :block_complete }
     assert_equal 1, completes.length
     assert_equal :command, completes.first[1].type
-    assert_equal "db", completes.first[1].name
-    assert_equal "SELECT *", completes.first[1].content
+    assert_equal 'db', completes.first[1].name
+    assert_equal 'SELECT *', completes.first[1].content
   end
 
   def test_shorthand_single_char_chunks
@@ -264,7 +266,7 @@ class TestStreamParser < Minitest::Test
     completes = @events.select { |e, _| e == :block_complete }
     assert_equal 1, completes.length
     assert_equal :final, completes.first[1].type
-    assert_equal "done", completes.first[1].content
+    assert_equal 'done', completes.first[1].content
   end
 
   def test_shorthand_with_surrounding_text
@@ -277,7 +279,7 @@ class TestStreamParser < Minitest::Test
 
     text_events = @events.select { |e, _| e == :text_chunk }
     combined = text_events.map { |_, d| d }.join
-    assert_equal "Before  after", combined
+    assert_equal 'Before  after', combined
   end
 
   def test_mixed_canonical_and_shorthand
@@ -288,7 +290,7 @@ class TestStreamParser < Minitest::Test
     assert_equal 3, completes.length
     assert_equal :plan, completes[0][1].type
     assert_equal :command, completes[1][1].type
-    assert_equal "search", completes[1][1].name
+    assert_equal 'search', completes[1][1].name
     assert_equal :final, completes[2][1].type
   end
 
@@ -298,41 +300,42 @@ class TestStreamParser < Minitest::Test
     register_all_callbacks
 
     @parser.push('<final>')
-    @parser.push("Hello, ")
-    @parser.push("this is a ")
-    @parser.push("long streamed ")
-    @parser.push("response.")
-    @parser.push("</final>")
+    @parser.push('Hello, ')
+    @parser.push('this is a ')
+    @parser.push('long streamed ')
+    @parser.push('response.')
+    @parser.push('</final>')
 
     contents = @events.select { |e, _| e == :block_content }
     # Should have multiple incremental content events, not just one
-    assert contents.length > 1, "Expected multiple block_content events for incremental streaming, got #{contents.length}"
+    assert contents.length > 1,
+           "Expected multiple block_content events for incremental streaming, got #{contents.length}"
 
     combined = contents.map { |_, d| d }.join
-    assert_equal "Hello, this is a long streamed response.", combined
+    assert_equal 'Hello, this is a long streamed response.', combined
 
     completes = @events.select { |e, _| e == :block_complete }
     assert_equal 1, completes.length
-    assert_equal "Hello, this is a long streamed response.", completes.first[1].content
+    assert_equal 'Hello, this is a long streamed response.', completes.first[1].content
   end
 
   def test_block_content_streams_with_canonical_syntax
     register_all_callbacks
 
     @parser.push('<block type="final">')
-    @parser.push("chunk1 ")
-    @parser.push("chunk2 ")
-    @parser.push("chunk3")
-    @parser.push("</block>")
+    @parser.push('chunk1 ')
+    @parser.push('chunk2 ')
+    @parser.push('chunk3')
+    @parser.push('</block>')
 
     contents = @events.select { |e, _| e == :block_content }
-    assert contents.length > 1, "Expected multiple block_content events"
+    assert contents.length > 1, 'Expected multiple block_content events'
 
     combined = contents.map { |_, d| d }.join
-    assert_equal "chunk1 chunk2 chunk3", combined
+    assert_equal 'chunk1 chunk2 chunk3', combined
 
     completes = @events.select { |e, _| e == :block_complete }
     assert_equal 1, completes.length
-    assert_equal "chunk1 chunk2 chunk3", completes.first[1].content
+    assert_equal 'chunk1 chunk2 chunk3', completes.first[1].content
   end
 end

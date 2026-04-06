@@ -1,13 +1,15 @@
-require "net/http"
-require "uri"
-require "json"
+# frozen_string_literal: true
+
+require 'net/http'
+require 'uri'
+require 'json'
 
 module Kernai
   module Examples
     class OpenaiProvider < Kernai::Provider
-      API_URL = "https://api.openai.com/v1/chat/completions"
+      API_URL = 'https://api.openai.com/v1/chat/completions'
 
-      def initialize(api_key: ENV["OPENAI_API_KEY"])
+      def initialize(api_key: ENV['OPENAI_API_KEY'])
         @api_key = api_key
       end
 
@@ -33,7 +35,7 @@ module Kernai
       def build_payload(messages, model, stream: false)
         payload = {
           model: model,
-          messages: messages.map { |m| { "role" => m[:role].to_s, "content" => m[:content] } }
+          messages: messages.map { |m| { 'role' => m[:role].to_s, 'content' => m[:content] } }
         }
         payload[:stream] = true if stream
         payload
@@ -45,8 +47,8 @@ module Kernai
         http.read_timeout = 120
 
         request = Net::HTTP::Post.new(uri.path)
-        request["Content-Type"] = "application/json"
-        request["Authorization"] = "Bearer #{@api_key}"
+        request['Content-Type'] = 'application/json'
+        request['Authorization'] = "Bearer #{@api_key}"
         request.body = JSON.generate(payload)
 
         http.request(request)
@@ -54,22 +56,22 @@ module Kernai
 
       def parse_response(body)
         data = JSON.parse(body)
-        data.dig("choices", 0, "message", "content") || ""
+        data.dig('choices', 0, 'message', 'content') || ''
       end
 
       def parse_stream(body, &block)
-        full_text = +""
+        full_text = +''
 
         body.each_line do |line|
           line = line.strip
           next if line.empty?
-          next unless line.start_with?("data: ")
+          next unless line.start_with?('data: ')
 
-          data = line.sub("data: ", "")
-          next if data == "[DONE]"
+          data = line.sub('data: ', '')
+          next if data == '[DONE]'
 
           parsed = JSON.parse(data)
-          content = parsed.dig("choices", 0, "delta", "content")
+          content = parsed.dig('choices', 0, 'delta', 'content')
           if content && !content.empty?
             full_text << content
             block.call(content)

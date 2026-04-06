@@ -1,6 +1,8 @@
-require "test_helper"
-require "tmpdir"
-require "fileutils"
+# frozen_string_literal: true
+
+require 'test_helper'
+require 'tmpdir'
+require 'fileutils'
 
 class TestSkill < Minitest::Test
   include Kernai::TestHelpers
@@ -14,7 +16,7 @@ class TestSkill < Minitest::Test
 
   def test_define_skill_with_dsl
     skill = Kernai::Skill.define(:search) do
-      description "Search the database"
+      description 'Search the database'
       input :query, String
       input :limit, Integer, default: 10
 
@@ -24,7 +26,7 @@ class TestSkill < Minitest::Test
     end
 
     assert_equal :search, skill.name
-    assert_equal "Search the database", skill.description_text
+    assert_equal 'Search the database', skill.description_text
     assert_equal 2, skill.inputs.size
     assert_equal({ type: String, default: :__no_default__ }, skill.inputs[:query])
     assert_equal({ type: Integer, default: 10 }, skill.inputs[:limit])
@@ -35,7 +37,7 @@ class TestSkill < Minitest::Test
 
   def test_find_registered_skill
     Kernai::Skill.define(:search) do
-      description "Search"
+      description 'Search'
       execute do |params|
         params
       end
@@ -43,18 +45,18 @@ class TestSkill < Minitest::Test
 
     found = Kernai::Skill.find(:search)
     assert_equal :search, found.name
-    assert_equal "Search", found.description_text
+    assert_equal 'Search', found.description_text
   end
 
   def test_find_with_string_name
     Kernai::Skill.define(:search) do
-      description "Search"
+      description 'Search'
       execute do |params|
         params
       end
     end
 
-    found = Kernai::Skill.find("search")
+    found = Kernai::Skill.find('search')
     assert_equal :search, found.name
   end
 
@@ -64,12 +66,12 @@ class TestSkill < Minitest::Test
 
   def test_all_returns_all_registered_skills
     Kernai::Skill.define(:alpha) do
-      description "Alpha"
-      execute do |params| params end
+      description 'Alpha'
+      execute { |params| params }
     end
     Kernai::Skill.define(:beta) do
-      description "Beta"
-      execute do |params| params end
+      description 'Beta'
+      execute { |params| params }
     end
 
     all = Kernai::Skill.all
@@ -83,8 +85,8 @@ class TestSkill < Minitest::Test
 
   def test_unregister_removes_skill
     Kernai::Skill.define(:search) do
-      description "Search"
-      execute do |params| params end
+      description 'Search'
+      execute { |params| params }
     end
 
     assert Kernai::Skill.find(:search)
@@ -94,11 +96,11 @@ class TestSkill < Minitest::Test
 
   def test_unregister_with_string_name
     Kernai::Skill.define(:search) do
-      description "Search"
-      execute do |params| params end
+      description 'Search'
+      execute { |params| params }
     end
 
-    Kernai::Skill.unregister("search")
+    Kernai::Skill.unregister('search')
     assert_nil Kernai::Skill.find(:search)
   end
 
@@ -106,12 +108,12 @@ class TestSkill < Minitest::Test
 
   def test_reset_clears_all_skills
     Kernai::Skill.define(:one) do
-      description "One"
-      execute do |params| params end
+      description 'One'
+      execute { |params| params }
     end
     Kernai::Skill.define(:two) do
-      description "Two"
-      execute do |params| params end
+      description 'Two'
+      execute { |params| params }
     end
 
     assert_equal 2, Kernai::Skill.all.size
@@ -123,7 +125,7 @@ class TestSkill < Minitest::Test
 
   def test_call_with_valid_params
     skill = Kernai::Skill.define(:greet) do
-      description "Greet someone"
+      description 'Greet someone'
       input :name, String
 
       execute do |params|
@@ -131,13 +133,13 @@ class TestSkill < Minitest::Test
       end
     end
 
-    result = skill.call(name: "World")
-    assert_equal "Hello, World!", result
+    result = skill.call(name: 'World')
+    assert_equal 'Hello, World!', result
   end
 
   def test_call_with_multiple_params
     skill = Kernai::Skill.define(:search) do
-      description "Search"
+      description 'Search'
       input :query, String
       input :limit, Integer, default: 10
 
@@ -146,15 +148,15 @@ class TestSkill < Minitest::Test
       end
     end
 
-    result = skill.call(query: "ruby", limit: 5)
-    assert_equal({ query: "ruby", limit: 5 }, result)
+    result = skill.call(query: 'ruby', limit: 5)
+    assert_equal({ query: 'ruby', limit: 5 }, result)
   end
 
   # --- Skill#call with missing required params ---
 
   def test_call_raises_on_missing_required_param
     skill = Kernai::Skill.define(:search) do
-      description "Search"
+      description 'Search'
       input :query, String
 
       execute do |params|
@@ -170,7 +172,7 @@ class TestSkill < Minitest::Test
 
   def test_call_raises_on_wrong_type
     skill = Kernai::Skill.define(:search) do
-      description "Search"
+      description 'Search'
       input :query, String
 
       execute do |params|
@@ -186,7 +188,7 @@ class TestSkill < Minitest::Test
 
   def test_call_uses_default_when_param_omitted
     skill = Kernai::Skill.define(:search) do
-      description "Search"
+      description 'Search'
       input :query, String
       input :limit, Integer, default: 10
 
@@ -195,13 +197,13 @@ class TestSkill < Minitest::Test
       end
     end
 
-    result = skill.call(query: "ruby")
+    result = skill.call(query: 'ruby')
     assert_equal 10, result
   end
 
   def test_call_overrides_default_when_param_provided
     skill = Kernai::Skill.define(:search) do
-      description "Search"
+      description 'Search'
       input :query, String
       input :limit, Integer, default: 10
 
@@ -210,13 +212,13 @@ class TestSkill < Minitest::Test
       end
     end
 
-    result = skill.call(query: "ruby", limit: 25)
+    result = skill.call(query: 'ruby', limit: 25)
     assert_equal 25, result
   end
 
   def test_call_with_nil_default
     skill = Kernai::Skill.define(:optional) do
-      description "Optional param"
+      description 'Optional param'
       input :tag, String, default: nil
 
       execute do |params|
@@ -235,7 +237,7 @@ class TestSkill < Minitest::Test
       Thread.new do
         Kernai::Skill.define(:"skill_#{i}") do
           description "Skill #{i}"
-          execute do |params|
+          execute do |_params|
             i
           end
         end
@@ -256,7 +258,7 @@ class TestSkill < Minitest::Test
 
   def test_load_from_loads_skill_files
     Dir.mktmpdir do |dir|
-      skill_file = File.join(dir, "echo_skill.rb")
+      skill_file = File.join(dir, 'echo_skill.rb')
       File.write(skill_file, <<~RUBY)
         Kernai::Skill.define(:echo) do
           description "Echo input"
@@ -268,19 +270,19 @@ class TestSkill < Minitest::Test
         end
       RUBY
 
-      Kernai::Skill.load_from(File.join(dir, "*.rb"))
+      Kernai::Skill.load_from(File.join(dir, '*.rb'))
 
       skill = Kernai::Skill.find(:echo)
       refute_nil skill
       assert_equal :echo, skill.name
-      assert_equal "Echo input", skill.description_text
-      assert_equal "hello", skill.call(text: "hello")
+      assert_equal 'Echo input', skill.description_text
+      assert_equal 'hello', skill.call(text: 'hello')
     end
   end
 
   def test_reload_reloads_all_load_paths
     Dir.mktmpdir do |dir|
-      skill_file = File.join(dir, "counter_skill.rb")
+      skill_file = File.join(dir, 'counter_skill.rb')
       File.write(skill_file, <<~RUBY)
         Kernai::Skill.define(:counter) do
           description "Version 1"
@@ -290,9 +292,9 @@ class TestSkill < Minitest::Test
         end
       RUBY
 
-      Kernai::Skill.load_from(File.join(dir, "*.rb"))
+      Kernai::Skill.load_from(File.join(dir, '*.rb'))
       skill = Kernai::Skill.find(:counter)
-      assert_equal "Version 1", skill.description_text
+      assert_equal 'Version 1', skill.description_text
 
       # Update the file
       File.write(skill_file, <<~RUBY)
@@ -307,13 +309,13 @@ class TestSkill < Minitest::Test
       Kernai::Skill.reload!
       skill = Kernai::Skill.find(:counter)
       refute_nil skill
-      assert_equal "Version 2", skill.description_text
+      assert_equal 'Version 2', skill.description_text
     end
   end
 
   def test_load_from_does_not_duplicate_paths
     Dir.mktmpdir do |dir|
-      skill_file = File.join(dir, "simple_skill.rb")
+      skill_file = File.join(dir, 'simple_skill.rb')
       File.write(skill_file, <<~RUBY)
         Kernai::Skill.define(:simple) do
           description "Simple"
@@ -323,7 +325,7 @@ class TestSkill < Minitest::Test
         end
       RUBY
 
-      pattern = File.join(dir, "*.rb")
+      pattern = File.join(dir, '*.rb')
       Kernai::Skill.load_from(pattern)
       Kernai::Skill.load_from(pattern)
 

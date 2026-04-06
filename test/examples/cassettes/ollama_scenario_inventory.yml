@@ -1,0 +1,170 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://api.ollama.com/api/chat
+    body:
+      encoding: UTF-8
+      string: '{"model":"gemma3:27b","messages":[{"role":"system","content":"You are
+        a warehouse inventory assistant. You have NO knowledge of the product catalog.\nYou
+        MUST use the inventory skill to look up any product information.\nNever guess
+        or assume product details — always query first.\n\nYou MUST respond ONLY using
+        XML blocks with this EXACT syntax:\n<block type=\"TYPE\">content</block>\n\nCRITICAL:
+        The tag name is always \"block\" with a type attribute. Never use shorthand
+        like <final> or <command>.\n\nAvailable block types:\n- command: execute a
+        skill. Requires a name attribute: <block type=\"command\" name=\"SKILL\">params</block>\n-
+        final: your final answer: <block type=\"final\">Your answer here</block>\n-
+        plan: optional reasoning: <block type=\"plan\">Your thinking</block>\n\nAfter
+        receiving a skill result, analyze it and either use another skill or provide
+        your final answer.\n\nAvailable skills:\n- inventory: Look up products. Usage:
+        <block type=\"command\" name=\"inventory\">search query</block>\n  Returns
+        a JSON array of products with fields: sku, name, price, stock, warehouse\n"},{"role":"user","content":"Which
+        products are out of stock?"}],"stream":true}'
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Date:
+      - Mon, 06 Apr 2026 21:12:29 GMT
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Set-Cookie:
+      - aid=f63c9e5a-845f-40e2-b473-6af0ad2cd7b5; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 7cb5adac31238c58530a172859b7efbf55c94869
+      X-Build-Time:
+      - '2026-04-06T13:06:07-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - 6ba8ac67-7684-43af-84a7-42f3a22a1cf3
+      Server:
+      - cloudflare
+      X-Cloud-Trace-Context:
+      - 50057a36e9db4e97fbbf1124b5dca31f/1650528628048312906
+      Traceparent:
+      - 00-50057a36e9db4e97fbbf1124b5dca31f-16e7db0ad66eba4a-00
+      Via:
+      - 1.1 google
+      Cf-Cache-Status:
+      - DYNAMIC
+      Cf-Ray:
+      - 9e83ca7e2ae4d0e2-SOF
+    body:
+      encoding: ASCII-8BIT
+      string: |
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:29.921552252Z","message":{"role":"assistant","content":"\u003cblock type=\"plan\"\u003eI need to find all products that have a stock level of "},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:30.132739878Z","message":{"role":"assistant","content":"0. To do this, I will use the inventory skill to get a list of all products"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:30.341589212Z","message":{"role":"assistant","content":" and then filter the results based on the 'stock' field. Since I have no knowledge of"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:30.533457357Z","message":{"role":"assistant","content":" the product catalog, I must first use the inventory skill to retrieve the product list.\u003c/block\u003e"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:30.537112275Z","message":{"role":"assistant","content":"\n\u003cblock type=\"command\" name=\"inventory\"\u003esearch query\u003c/block\u003e"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:30.544764181Z","message":{"role":"assistant","content":""},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:30.629029892Z","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop","total_duration":1247199868,"prompt_eval_count":251,"eval_count":93}
+  recorded_at: Mon, 06 Apr 2026 21:12:30 GMT
+- request:
+    method: post
+    uri: https://api.ollama.com/api/chat
+    body:
+      encoding: UTF-8
+      string: '{"model":"gemma3:27b","messages":[{"role":"system","content":"You are
+        a warehouse inventory assistant. You have NO knowledge of the product catalog.\nYou
+        MUST use the inventory skill to look up any product information.\nNever guess
+        or assume product details — always query first.\n\nYou MUST respond ONLY using
+        XML blocks with this EXACT syntax:\n<block type=\"TYPE\">content</block>\n\nCRITICAL:
+        The tag name is always \"block\" with a type attribute. Never use shorthand
+        like <final> or <command>.\n\nAvailable block types:\n- command: execute a
+        skill. Requires a name attribute: <block type=\"command\" name=\"SKILL\">params</block>\n-
+        final: your final answer: <block type=\"final\">Your answer here</block>\n-
+        plan: optional reasoning: <block type=\"plan\">Your thinking</block>\n\nAfter
+        receiving a skill result, analyze it and either use another skill or provide
+        your final answer.\n\nAvailable skills:\n- inventory: Look up products. Usage:
+        <block type=\"command\" name=\"inventory\">search query</block>\n  Returns
+        a JSON array of products with fields: sku, name, price, stock, warehouse\n"},{"role":"user","content":"Which
+        products are out of stock?"},{"role":"assistant","content":"<block type=\"plan\">I
+        need to find all products that have a stock level of 0. To do this, I will
+        use the inventory skill to get a list of all products and then filter the
+        results based on the ''stock'' field. Since I have no knowledge of the product
+        catalog, I must first use the inventory skill to retrieve the product list.</block>\n<block
+        type=\"command\" name=\"inventory\">search query</block>"},{"role":"user","content":"<block
+        type=\"result\" name=\"inventory\">[{\"sku\":\"WDG-401\",\"name\":\"Titanium
+        Widget\",\"price\":34.99,\"stock\":142,\"warehouse\":\"EU-West\"},{\"sku\":\"WDG-402\",\"name\":\"Carbon
+        Widget\",\"price\":27.5,\"stock\":0,\"warehouse\":\"EU-West\"},{\"sku\":\"SPR-801\",\"name\":\"Quantum
+        Sprocket\",\"price\":89.95,\"stock\":37,\"warehouse\":\"US-East\"},{\"sku\":\"SPR-802\",\"name\":\"Nano
+        Sprocket\",\"price\":62.0,\"stock\":215,\"warehouse\":\"US-East\"},{\"sku\":\"GZM-101\",\"name\":\"Flux
+        Gizmo\",\"price\":149.99,\"stock\":8,\"warehouse\":\"AP-South\"}]</block>"}],"stream":true}'
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Date:
+      - Mon, 06 Apr 2026 21:12:31 GMT
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Set-Cookie:
+      - aid=5298b56d-ff96-4ce9-a9bf-a71f0e25c04e; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 7cb5adac31238c58530a172859b7efbf55c94869
+      X-Build-Time:
+      - '2026-04-06T13:06:07-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - bdfaab7e-64d7-438f-b408-d6ee565597e1
+      Server:
+      - cloudflare
+      X-Cloud-Trace-Context:
+      - 1f2027bc4cb170fdfbbf1124b5dca5c9/245419561916197388
+      Traceparent:
+      - 00-1f2027bc4cb170fdfbbf1124b5dca5c9-0367e7ca90f26a0c-00
+      Via:
+      - 1.1 google
+      Cf-Cache-Status:
+      - DYNAMIC
+      Cf-Ray:
+      - 9e83ca890cdd3d44-SOF
+    body:
+      encoding: ASCII-8BIT
+      string: |
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:31.635444147Z","message":{"role":"assistant","content":"\u003cblock type=\"plan\"\u003eThe inventory skill returned a list of products. I need to identify"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:31.83695846Z","message":{"role":"assistant","content":" the products where the 'stock' value is 0. Based on the result, the"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:32.038091595Z","message":{"role":"assistant","content":" Carbon Widget (sku: WDG-402) is out of stock.\u003c/block"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:32.165578848Z","message":{"role":"assistant","content":"\u003e\n\u003cblock type=\"final\"\u003eThe Carbon Widget (sku: WDG-4"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:32.169182645Z","message":{"role":"assistant","content":"02) is out of stock.\u003c/block\u003e"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:32.177616288Z","message":{"role":"assistant","content":""},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:12:32.242604861Z","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop","total_duration":1127705624,"prompt_eval_count":534,"eval_count":84}
+  recorded_at: Mon, 06 Apr 2026 21:12:32 GMT
+recorded_with: VCR 6.4.0

@@ -1,21 +1,24 @@
-require_relative "../test_helper"
-require "vcr"
-require "webmock/minitest"
+# frozen_string_literal: true
+
+require_relative '../test_helper'
+require 'vcr'
+require 'webmock/minitest'
 
 # Load example providers
-require_relative "../../examples/providers/openai_provider"
-require_relative "../../examples/providers/anthropic_provider"
+require_relative '../../examples/providers/openai_provider'
+require_relative '../../examples/providers/anthropic_provider'
+require_relative '../../examples/providers/ollama_provider'
 
 VCR.configure do |c|
-  c.cassette_library_dir = File.expand_path("cassettes", __dir__)
+  c.cassette_library_dir = File.expand_path('cassettes', __dir__)
   c.hook_into :webmock
-  record_mode = if ENV["VCR_RECORD"] == "all"
-    :all
-  elsif ENV["OPENAI_API_KEY"] || ENV["ANTHROPIC_API_KEY"]
-    :new_episodes
-  else
-    :none  # CI / no API keys: replay only, fail on missing cassettes
-  end
+  record_mode = if ENV['VCR_RECORD'] == 'all'
+                  :all
+                elsif ENV['OPENAI_API_KEY'] || ENV['ANTHROPIC_API_KEY'] || ENV['OLLAMA_API_KEY']
+                  :new_episodes
+                else
+                  :none # CI / no API keys: replay only, fail on missing cassettes
+                end
 
   c.default_cassette_options = {
     record: record_mode,
@@ -23,8 +26,9 @@ VCR.configure do |c|
   }
 
   # Filter sensitive data
-  c.filter_sensitive_data("<OPENAI_API_KEY>") { ENV["OPENAI_API_KEY"] || "test-key" }
-  c.filter_sensitive_data("<ANTHROPIC_API_KEY>") { ENV["ANTHROPIC_API_KEY"] || "test-key" }
+  c.filter_sensitive_data('<OPENAI_API_KEY>') { ENV['OPENAI_API_KEY'] || 'test-key' }
+  c.filter_sensitive_data('<ANTHROPIC_API_KEY>') { ENV['ANTHROPIC_API_KEY'] || 'test-key' }
+  c.filter_sensitive_data('<OLLAMA_API_KEY>') { ENV['OLLAMA_API_KEY'] || 'test-key' }
 end
 
 BLOCK_INSTRUCTIONS = <<~PROMPT

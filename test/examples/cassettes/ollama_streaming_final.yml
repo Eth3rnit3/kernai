@@ -1,0 +1,74 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://api.ollama.com/api/chat
+    body:
+      encoding: UTF-8
+      string: '{"model":"gemma3:27b","messages":[{"role":"system","content":"You MUST
+        respond ONLY using XML blocks with this EXACT syntax:\n<block type=\"TYPE\">content
+        here</block>\n\nCRITICAL: The tag name is always \"block\" with a type attribute.
+        Never use shorthand tags like <final> or <command>.\n\nCorrect example:\n<block
+        type=\"final\">This is my answer.</block>\n\nWrong (DO NOT use):\n<final>This
+        is my answer.</final>\n\nAvailable types:\n- final: your final answer to the
+        user\n- command: execute an action (requires name attribute, e.g. <block type=\"command\"
+        name=\"skill_name\">params</block>)\n- plan: your reasoning before answering
+        (optional)\n\nAlways wrap your final answer in <block type=\"final\">...</block>.\n"},{"role":"user","content":"What
+        is 2+2?"}],"stream":true}'
+    headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OLLAMA_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Date:
+      - Mon, 06 Apr 2026 21:10:46 GMT
+      Content-Type:
+      - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Set-Cookie:
+      - aid=8221e00f-a876-4570-96f5-86af6ce230bf; Path=/; Max-Age=31536000; HttpOnly;
+        Secure; SameSite=Lax
+      X-Build-Commit:
+      - 7cb5adac31238c58530a172859b7efbf55c94869
+      X-Build-Time:
+      - '2026-04-06T13:06:07-07:00'
+      X-Frame-Options:
+      - DENY
+      X-Request-Id:
+      - e411b64c-2ef5-4c91-9db5-cfc98c219087
+      Server:
+      - cloudflare
+      Traceparent:
+      - 00-a4ed2aac4c964a7f612c32b50fbbe862-2ed4cd9fef454616-00
+      X-Cloud-Trace-Context:
+      - a4ed2aac4c964a7f612c32b50fbbe862/3374548107605132822
+      Via:
+      - 1.1 google
+      Cf-Cache-Status:
+      - DYNAMIC
+      Cf-Ray:
+      - 9e83c7fa99a8648e-MRS
+    body:
+      encoding: ASCII-8BIT
+      string: |
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:10:46.916451787Z","message":{"role":"assistant","content":"\u003cblock type=\"plan\"\u003eThe question asks for the sum of 2 and 2. This"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:10:47.06342312Z","message":{"role":"assistant","content":" is a basic arithmetic operation. The sum of 2 and 2 is 4.\u003c/block"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:10:47.066238098Z","message":{"role":"assistant","content":"\u003e\n\u003cblock type=\"final\"\u003e4\u003c/block\u003e"},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:10:47.073846209Z","message":{"role":"assistant","content":""},"done":false}
+        {"model":"gemma3:27b","created_at":"2026-04-06T21:10:47.119183246Z","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop","total_duration":736728393,"prompt_eval_count":179,"eval_count":52}
+  recorded_at: Mon, 06 Apr 2026 21:10:47 GMT
+recorded_with: VCR 6.4.0
