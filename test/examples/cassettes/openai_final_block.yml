@@ -5,8 +5,23 @@ http_interactions:
     uri: https://api.openai.com/v1/chat/completions
     body:
       encoding: UTF-8
-      string: ''
+      string: '{"model":"gpt-4.1","messages":[{"role":"system","content":"You MUST
+        respond ONLY using XML blocks with this EXACT syntax:\n<block type=\"TYPE\">content
+        here</block>\n\nCRITICAL: The tag name is always \"block\" with a type attribute.
+        Never use shorthand tags like <final> or <command>.\n\nCorrect example:\n<block
+        type=\"final\">This is my answer.</block>\n\nWrong (DO NOT use):\n<final>This
+        is my answer.</final>\n\nAvailable types:\n- final: your final answer to the
+        user\n- command: execute an action (requires name attribute, e.g. <block type=\"command\"
+        name=\"skill_name\">params</block>)\n- plan: your reasoning before answering
+        (optional)\n\nAlways wrap your final answer in <block type=\"final\">...</block>.\n"},{"role":"user","content":"What
+        is 2+2?"}]}'
     headers:
+      Accept-Encoding:
+      - gzip;q=1.0,deflate;q=0.6,identity;q=0.3
+      Accept:
+      - "*/*"
+      User-Agent:
+      - Ruby
       Content-Type:
       - application/json
       Authorization:
@@ -16,10 +31,94 @@ http_interactions:
       code: 200
       message: OK
     headers:
+      Date:
+      - Mon, 06 Apr 2026 17:01:52 GMT
       Content-Type:
       - application/json
+      Transfer-Encoding:
+      - chunked
+      Connection:
+      - keep-alive
+      Cf-Ray:
+      - 9e825b5e9d295915-MXP
+      Cf-Cache-Status:
+      - DYNAMIC
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      X-Content-Type-Options:
+      - nosniff
+      Access-Control-Expose-Headers:
+      - X-Request-ID
+      Openai-Organization:
+      - dmk
+      Openai-Processing-Ms:
+      - '446'
+      Openai-Project:
+      - proj_Bmx8aOYyq59frKAb6aT40x4w
+      Openai-Version:
+      - '2020-10-01'
+      X-Openai-Proxy-Wasm:
+      - v0.1
+      X-Ratelimit-Limit-Requests:
+      - '10000'
+      X-Ratelimit-Limit-Tokens:
+      - '2000000'
+      X-Ratelimit-Remaining-Requests:
+      - '9999'
+      X-Ratelimit-Remaining-Tokens:
+      - '1999836'
+      X-Ratelimit-Reset-Requests:
+      - 6ms
+      X-Ratelimit-Reset-Tokens:
+      - 4ms
+      X-Request-Id:
+      - req_d06f1786dded4a9dbe17eeb546b26921
+      Set-Cookie:
+      - __cf_bm=47i.OcAHApXpVtY3tqTBRGBHSVAO4MczxDXDsYMyF1o-1775494911.7758634-1.0.1.1-uqy.Bwatcwv6o.mRUNebraLtfQjOwYNIOsfTwE1wDAiZlKE133DCdNI0jz5iQw_w_npKoJqCJqvYnVHo6cHi7D7F5fmvjeuU97gnfQ5g4nH5UCGyZd4sDvs5pi4a3fsD;
+        HttpOnly; Secure; Path=/; Domain=api.openai.com; Expires=Mon, 06 Apr 2026
+        17:31:52 GMT
+      Alt-Svc:
+      - h3=":443"; ma=86400
     body:
-      encoding: UTF-8
-      string: '{"id":"chatcmpl-test001","object":"chat.completion","created":1700000000,"model":"gpt-4.1","choices":[{"index":0,"message":{"role":"assistant","content":"<block type=\"final\">The answer to 2+2 is 4.</block>"},"finish_reason":"stop"}],"usage":{"prompt_tokens":80,"completion_tokens":25,"total_tokens":105}}'
-  recorded_at: Thu, 01 Jan 2025 00:00:00 GMT
-recorded_with: VCR 6.3.1
+      encoding: ASCII-8BIT
+      string: |
+        {
+          "id": "chatcmpl-DRhcdGJYv3eS4BilYWlMDM01npLVx",
+          "object": "chat.completion",
+          "created": 1775494911,
+          "model": "gpt-4.1-2025-04-14",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "<block type=\"final\">2+2 equals 4.</block>",
+                "refusal": null,
+                "annotations": []
+              },
+              "logprobs": null,
+              "finish_reason": "stop"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 168,
+            "completion_tokens": 15,
+            "total_tokens": 183,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "audio_tokens": 0
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "audio_tokens": 0,
+              "accepted_prediction_tokens": 0,
+              "rejected_prediction_tokens": 0
+            }
+          },
+          "service_tier": "default",
+          "system_fingerprint": "fp_2eab2d4097"
+        }
+  recorded_at: Mon, 06 Apr 2026 17:01:52 GMT
+recorded_with: VCR 6.4.0

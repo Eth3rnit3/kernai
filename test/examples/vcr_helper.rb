@@ -21,14 +21,21 @@ VCR.configure do |c|
 end
 
 BLOCK_INSTRUCTIONS = <<~PROMPT
-  You must respond using XML blocks of the form:
-  <block type="TYPE">...</block>
+  You MUST respond ONLY using XML blocks with this EXACT syntax:
+  <block type="TYPE">content here</block>
+
+  CRITICAL: The tag name is always "block" with a type attribute. Never use shorthand tags like <final> or <command>.
+
+  Correct example:
+  <block type="final">This is my answer.</block>
+
+  Wrong (DO NOT use):
+  <final>This is my answer.</final>
 
   Available types:
-  - command: execute an action (requires name attribute for skill)
   - final: your final answer to the user
-  - plan: your reasoning (optional)
+  - command: execute an action (requires name attribute, e.g. <block type="command" name="skill_name">params</block>)
+  - plan: your reasoning before answering (optional)
 
-  When you have a final answer, wrap it in a final block.
-  Always respond with at least one block.
+  Always wrap your final answer in <block type="final">...</block>.
 PROMPT

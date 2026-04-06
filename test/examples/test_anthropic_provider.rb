@@ -7,7 +7,7 @@ class TestAnthropicProvider < Minitest::Test
   def setup
     super
     Kernai.config.logger = Kernai::Logger.new(StringIO.new)
-    @provider = Kernai::Examples::AnthropicProvider.new(api_key: "test-key")
+    @provider = Kernai::Examples::AnthropicProvider.new
   end
 
   # --- Non-streaming ---

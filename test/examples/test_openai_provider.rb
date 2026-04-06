@@ -7,7 +7,7 @@ class TestOpenaiProvider < Minitest::Test
   def setup
     super
     Kernai.config.logger = Kernai::Logger.new(StringIO.new)
-    @provider = Kernai::Examples::OpenaiProvider.new(api_key: "test-key")
+    @provider = Kernai::Examples::OpenaiProvider.new
   end
 
   # --- Non-streaming ---
