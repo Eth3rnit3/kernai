@@ -9,7 +9,14 @@ require_relative "../../examples/providers/anthropic_provider"
 VCR.configure do |c|
   c.cassette_library_dir = File.expand_path("cassettes", __dir__)
   c.hook_into :webmock
-  record_mode = ENV["VCR_RECORD"] == "all" ? :all : :new_episodes
+  record_mode = if ENV["VCR_RECORD"] == "all"
+    :all
+  elsif ENV["OPENAI_API_KEY"] || ENV["ANTHROPIC_API_KEY"]
+    :new_episodes
+  else
+    :none  # CI / no API keys: replay only, fail on missing cassettes
+  end
+
   c.default_cassette_options = {
     record: record_mode,
     match_requests_on: %i[method uri]

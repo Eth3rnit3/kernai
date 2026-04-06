@@ -2,6 +2,7 @@ module Kernai
   class StreamParser
     OPEN_TAG_START = "<block"
     CLOSE_TAG = "</block>"
+    SHORTHAND_TYPES = Block::TYPES.map(&:to_s).freeze
 
     attr_reader :state
 
@@ -22,13 +23,11 @@ module Kernai
     def flush
       case @state
       when :text
-        emit_text_buffer
+        # nothing to flush
       when :tag_open
-        # Incomplete tag -- emit as text
         emit(:text_chunk, @tag_buffer) unless @tag_buffer.empty?
         @tag_buffer = +""
       when :block_content
-        # Incomplete block -- emit what we have as text
         emit(:text_chunk, @tag_buffer + @content_buffer) unless (@tag_buffer + @content_buffer).empty?
         @content_buffer = +""
         @tag_buffer = +""
@@ -44,6 +43,7 @@ module Kernai
       @content_buffer = +""
       @current_type = nil
       @current_name = nil
+      @close_tag = nil
     end
 
     private
@@ -64,37 +64,43 @@ module Kernai
     def consume_text
       idx = @buffer.index("<")
       if idx.nil?
-        # No '<' found
         emit(:text_chunk, @buffer) unless @buffer.empty?
         @buffer = +""
       elsif idx > 0
-        # Emit text before the '<'
         emit(:text_chunk, @buffer[0...idx])
         @buffer = @buffer[idx..]
         try_enter_tag_open
       else
-        # '<' is at position 0
         try_enter_tag_open
       end
     end
 
     def try_enter_tag_open
-      if @buffer.length < OPEN_TAG_START.length
-        # Could be a partial match -- check prefix
-        if OPEN_TAG_START.start_with?(@buffer)
-          @tag_buffer = +@buffer
-          @buffer = +""
-          @state = :tag_open
-        else
-          emit(:text_chunk, @buffer[0])
-          @buffer = @buffer[1..]
-        end
-      elsif @buffer.start_with?(OPEN_TAG_START)
+      # Check if this could be a block tag or a shorthand tag
+      if could_be_block_tag? || could_be_shorthand_tag?
         @tag_buffer = +""
         @state = :tag_open
-      else
+      elsif @buffer.length >= 2
+        # Not a recognized tag start — emit the '<' as text
         emit(:text_chunk, @buffer[0])
         @buffer = @buffer[1..]
+      else
+        # Need more data to decide
+        @tag_buffer = +@buffer
+        @buffer = +""
+        @state = :tag_open
+      end
+    end
+
+    def could_be_block_tag?
+      @buffer.start_with?(OPEN_TAG_START) ||
+        (OPEN_TAG_START.start_with?(@buffer) && @buffer.length < OPEN_TAG_START.length)
+    end
+
+    def could_be_shorthand_tag?
+      SHORTHAND_TYPES.any? do |type|
+        tag = "<#{type}"
+        @buffer.start_with?(tag) || (tag.start_with?(@buffer) && @buffer.length < tag.length)
       end
     end
 
@@ -108,9 +114,11 @@ module Kernai
       opening_tag = @tag_buffer[0..close_idx]
       remainder = @tag_buffer[(close_idx + 1)..]
 
+      # Try canonical: <block type="TYPE" name="NAME">
       if opening_tag =~ /\A<block\s+type="([^"]+)"(?:\s+name="([^"]*)")?\s*>\z/
         @current_type = Regexp.last_match(1).to_sym
         @current_name = Regexp.last_match(2)
+        @close_tag = CLOSE_TAG
 
         emit(:block_start, { type: @current_type, name: @current_name })
 
@@ -118,21 +126,39 @@ module Kernai
         @tag_buffer = +""
         @state = :block_content
         @buffer = remainder
-      else
-        emit(:text_chunk, @tag_buffer)
-        @tag_buffer = +""
-        @state = :text
+        return
       end
+
+      # Try shorthand: <final>, <command name="skill">, etc.
+      shorthand_re = /\A<(#{SHORTHAND_TYPES.join("|")})(?:\s+name="([^"]*)")?\s*>\z/
+      if opening_tag =~ shorthand_re
+        @current_type = Regexp.last_match(1).to_sym
+        @current_name = Regexp.last_match(2)
+        @close_tag = "</#{@current_type}>"
+
+        emit(:block_start, { type: @current_type, name: @current_name })
+
+        @content_buffer = +""
+        @tag_buffer = +""
+        @state = :block_content
+        @buffer = remainder
+        return
+      end
+
+      # Not a recognized tag — emit as text
+      emit(:text_chunk, @tag_buffer)
+      @tag_buffer = +""
+      @state = :text
     end
 
     def consume_block_content
       @content_buffer << @buffer
       @buffer = +""
 
-      close_idx = @content_buffer.index(CLOSE_TAG)
+      close_idx = @content_buffer.index(@close_tag)
       if close_idx
         content = @content_buffer[0...close_idx]
-        remainder = @content_buffer[(close_idx + CLOSE_TAG.length)..]
+        remainder = @content_buffer[(close_idx + @close_tag.length)..]
 
         emit(:block_content, content) unless content.empty?
 
@@ -142,13 +168,10 @@ module Kernai
         @content_buffer = +""
         @current_type = nil
         @current_name = nil
+        @close_tag = nil
         @state = :text
         @buffer = remainder
       end
-    end
-
-    def emit_text_buffer
-      # Nothing remaining to emit in text state
     end
 
     def emit(event, data)

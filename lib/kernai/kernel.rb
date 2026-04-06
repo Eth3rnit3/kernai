@@ -60,18 +60,18 @@ module Kernai
             end
           end
 
-          if final_block
-            result = final_block.content
-            Kernai.logger.info(event: "agent.complete", steps: step + 1)
-            callback&.call(Event.new(:final, result))
-            break
-          end
-
+          # Commands take priority: execute them and continue the loop
+          # even if the LLM also sent a final block (it needs to see results first)
           if command_blocks.any?
             command_blocks.each do |block|
               result_msg = execute_command(block, callback)
               messages << result_msg
             end
+          elsif final_block
+            result = final_block.content
+            Kernai.logger.info(event: "agent.complete", steps: step + 1)
+            callback&.call(Event.new(:final, result))
+            break
           else
             # No blocks or only informational blocks — treat raw response as result
             result = raw_response

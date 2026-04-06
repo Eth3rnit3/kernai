@@ -27,5 +27,5 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
 
-      - name: Run unit tests
+      - name: Run tests (unit + examples with VCR replay)
         run: bundle exec rake test

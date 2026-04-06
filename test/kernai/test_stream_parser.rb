@@ -218,4 +218,77 @@ class TestStreamParser < Minitest::Test
     assert_equal :command, completes.first[1].type
     assert_equal "hi", completes.first[1].content
   end
+
+  # -- Shorthand format --
+
+  def test_shorthand_final_block
+    register_all_callbacks
+    @parser.push('<final>The answer</final>')
+
+    completes = @events.select { |e, _| e == :block_complete }
+    assert_equal 1, completes.length
+    assert_equal :final, completes.first[1].type
+    assert_equal "The answer", completes.first[1].content
+  end
+
+  def test_shorthand_command_with_name
+    register_all_callbacks
+    @parser.push('<command name="weather">London</command>')
+
+    completes = @events.select { |e, _| e == :block_complete }
+    assert_equal 1, completes.length
+    assert_equal :command, completes.first[1].type
+    assert_equal "weather", completes.first[1].name
+    assert_equal "London", completes.first[1].content
+  end
+
+  def test_shorthand_chunked
+    register_all_callbacks
+    @parser.push('<com')
+    @parser.push('mand name="db">')
+    @parser.push('SELECT *')
+    @parser.push('</command>')
+
+    completes = @events.select { |e, _| e == :block_complete }
+    assert_equal 1, completes.length
+    assert_equal :command, completes.first[1].type
+    assert_equal "db", completes.first[1].name
+    assert_equal "SELECT *", completes.first[1].content
+  end
+
+  def test_shorthand_single_char_chunks
+    register_all_callbacks
+    input = '<final>done</final>'
+    input.each_char { |c| @parser.push(c) }
+
+    completes = @events.select { |e, _| e == :block_complete }
+    assert_equal 1, completes.length
+    assert_equal :final, completes.first[1].type
+    assert_equal "done", completes.first[1].content
+  end
+
+  def test_shorthand_with_surrounding_text
+    register_all_callbacks
+    @parser.push('Before <final>answer</final> after')
+    @parser.flush
+
+    completes = @events.select { |e, _| e == :block_complete }
+    assert_equal 1, completes.length
+
+    text_events = @events.select { |e, _| e == :text_chunk }
+    combined = text_events.map { |_, d| d }.join
+    assert_equal "Before  after", combined
+  end
+
+  def test_mixed_canonical_and_shorthand
+    register_all_callbacks
+    @parser.push('<block type="plan">thinking</block><command name="search">query</command><final>done</final>')
+
+    completes = @events.select { |e, _| e == :block_complete }
+    assert_equal 3, completes.length
+    assert_equal :plan, completes[0][1].type
+    assert_equal :command, completes[1][1].type
+    assert_equal "search", completes[1][1].name
+    assert_equal :final, completes[2][1].type
+  end
 end

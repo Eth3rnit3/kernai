@@ -125,4 +125,65 @@ class TestParser < Minitest::Test
       assert_equal "content_#{t}", result[:blocks][i].content
     end
   end
+
+  # -- Shorthand format --
+
+  def test_parse_shorthand_final
+    text = '<final>The answer is 42.</final>'
+    result = Kernai::Parser.parse(text)
+
+    assert_equal 1, result[:blocks].size
+    assert_equal :final, result[:blocks][0].type
+    assert_equal "The answer is 42.", result[:blocks][0].content
+  end
+
+  def test_parse_shorthand_command_with_name
+    text = '<command name="weather">London</command>'
+    result = Kernai::Parser.parse(text)
+
+    assert_equal 1, result[:blocks].size
+    assert_equal :command, result[:blocks][0].type
+    assert_equal "weather", result[:blocks][0].name
+    assert_equal "London", result[:blocks][0].content
+  end
+
+  def test_parse_shorthand_multiple_types
+    text = '<plan>Let me think</plan><command name="search">query</command><final>Done</final>'
+    result = Kernai::Parser.parse(text)
+
+    assert_equal 3, result[:blocks].size
+    assert_equal :plan, result[:blocks][0].type
+    assert_equal :command, result[:blocks][1].type
+    assert_equal "search", result[:blocks][1].name
+    assert_equal :final, result[:blocks][2].type
+  end
+
+  def test_parse_shorthand_with_text_segments
+    text = 'Before <final>answer</final> after'
+    result = Kernai::Parser.parse(text)
+
+    assert_equal 1, result[:blocks].size
+    assert_equal 2, result[:text_segments].size
+    assert_equal "Before ", result[:text_segments][0]
+    assert_equal " after", result[:text_segments][1]
+  end
+
+  def test_parse_mixed_canonical_and_shorthand
+    text = '<block type="plan">step 1</block><command name="db">query</command><final>done</final>'
+    result = Kernai::Parser.parse(text)
+
+    assert_equal 3, result[:blocks].size
+    assert_equal :plan, result[:blocks][0].type
+    assert_equal :command, result[:blocks][1].type
+    assert_equal :final, result[:blocks][2].type
+  end
+
+  def test_parse_shorthand_multiline
+    text = "<final>\nLine 1\nLine 2\n</final>"
+    result = Kernai::Parser.parse(text)
+
+    assert_equal 1, result[:blocks].size
+    assert_includes result[:blocks][0].content, "Line 1"
+    assert_includes result[:blocks][0].content, "Line 2"
+  end
 end
