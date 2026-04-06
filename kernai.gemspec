@@ -9,7 +9,7 @@ Gem::Specification.new do |spec|
   spec.homepage      = "https://github.com/Eth3rnit3/kernai"
   spec.license       = "MIT"
 
-  spec.required_ruby_version = ">= 3.0"
+  spec.required_ruby_version = ">= 3.2"
 
   spec.files         = Dir["lib/**/*.rb"]
   spec.require_paths = ["lib"]
