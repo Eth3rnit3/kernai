@@ -75,7 +75,7 @@ module Kernai
           # even if the LLM also sent a final block (it needs to see results first)
           if command_blocks.any?
             command_blocks.each do |block|
-              result_msg = execute_command(block, rec, step, callback)
+              result_msg = execute_command(block, agent, rec, step, callback)
               messages << result_msg
             end
           elsif final_block
@@ -122,10 +122,10 @@ module Kernai
         end
       end
 
-      def execute_command(block, rec, step, callback)
-        skill_name = block.name&.to_sym
+      def execute_command(block, agent, rec, step, callback)
+        command_name = block.name&.strip
 
-        unless skill_name
+        unless command_name
           Kernai.logger.error(event: 'skill.execute', error: 'no skill name in command block')
           return Message.new(
             role: :user,
@@ -133,6 +133,36 @@ module Kernai
           )
         end
 
+        # Built-in commands (prefixed with /)
+        return execute_builtin(command_name, agent, rec, step, callback) if command_name.start_with?('/')
+
+        execute_skill(command_name.to_sym, block.content, rec, step, callback)
+      end
+
+      def execute_builtin(command_name, agent, rec, step, callback)
+        case command_name
+        when '/skills'
+          listing = Skill.listing(agent.skills)
+          Kernai.logger.info(event: 'builtin.execute', command: '/skills')
+          rec&.record(step: step, event: :builtin_result, data: { command: '/skills', result: listing })
+          callback&.call(Event.new(:builtin_result, { command: '/skills', result: listing }))
+
+          Message.new(
+            role: :user,
+            content: "<block type=\"result\" name=\"/skills\">#{listing}</block>"
+          )
+        else
+          Kernai.logger.error(event: 'builtin.execute', command: command_name, error: 'unknown')
+          rec&.record(step: step, event: :builtin_error, data: { command: command_name, error: 'unknown' })
+
+          Message.new(
+            role: :user,
+            content: "<block type=\"error\" name=\"#{command_name}\">Unknown command '#{command_name}'</block>"
+          )
+        end
+      end
+
+      def execute_skill(skill_name, content, rec, step, callback)
         skill = Skill.find(skill_name)
 
         unless skill
@@ -157,7 +187,7 @@ module Kernai
 
         begin
           Kernai.logger.info(event: 'skill.execute', skill: skill_name)
-          params = parse_command_params(block.content, skill)
+          params = parse_command_params(content, skill)
           rec&.record(step: step, event: :skill_execute, data: { skill: skill_name, params: params })
           result = skill.call(params)
           Kernai.logger.info(event: 'skill.result', skill: skill_name)

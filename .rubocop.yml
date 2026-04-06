@@ -17,6 +17,9 @@ AllCops:
     - 'vendor/**/*'
     - 'node_modules/**/*'
 
+Style/Documentation:
+  Enabled: false
+
 Metrics/AbcSize:
   Max: 30
 

@@ -24,6 +24,21 @@ module Kernai
         @mutex.synchronize { registry.values }
       end
 
+      def listing(scope = :all)
+        skills = case scope
+                 when nil then []
+                 when :all then all
+                 when Array then scope.filter_map { |n| find(n) }
+                 else []
+                 end
+
+        skills = skills.select { |s| Kernai.config.allowed_skills.include?(s.name) } if Kernai.config.allowed_skills
+
+        return 'No skills available.' if skills.empty?
+
+        skills.map(&:to_description).join("\n")
+      end
+
       def unregister(name)
         @mutex.synchronize { registry.delete(name.to_sym) }
       end
@@ -82,7 +97,32 @@ module Kernai
       @execute_block.call(validated)
     end
 
+    def to_description
+      parts = ["- #{@name}"]
+      parts << ": #{@description_text}" if @description_text
+      if @inputs.any?
+        inputs_str = @inputs.map do |name, spec|
+          str = "#{name} (#{spec[:type].name})"
+          str += " default: #{spec[:default]}" unless spec[:default] == :__no_default__
+          str
+        end.join(', ')
+        parts << "\n  Inputs: #{inputs_str}"
+        parts << "\n  Usage: #{usage_example}"
+      end
+      parts.join
+    end
+
     private
+
+    def usage_example
+      if @inputs.size == 1
+        input_name = @inputs.keys.first
+        "<block type=\"command\" name=\"#{@name}\">#{input_name} value</block>"
+      else
+        json = @inputs.map { |k, _| "\"#{k}\": \"...\"" }.join(', ')
+        "<block type=\"command\" name=\"#{@name}\">{#{json}}</block>"
+      end
+    end
 
     def validate_params(params)
       result = {}

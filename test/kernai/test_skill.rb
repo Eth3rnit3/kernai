@@ -335,4 +335,102 @@ class TestSkill < Minitest::Test
       refute_nil skill
     end
   end
+
+  # --- to_description ---
+
+  def test_to_description_with_single_input
+    skill = Kernai::Skill.define(:search) do
+      description 'Search documents'
+      input :query, String
+      execute { |p| p[:query] }
+    end
+
+    desc = skill.to_description
+    assert_includes desc, '- search: Search documents'
+    assert_includes desc, 'Inputs: query (String)'
+    assert_includes desc, 'name="search"'
+  end
+
+  def test_to_description_with_multiple_inputs
+    skill = Kernai::Skill.define(:api_call) do
+      description 'Call an API'
+      input :url, String
+      input :method, String, default: 'GET'
+      execute { |_| 'ok' }
+    end
+
+    desc = skill.to_description
+    assert_includes desc, '- api_call: Call an API'
+    assert_includes desc, 'url (String)'
+    assert_includes desc, 'method (String) default: GET'
+    assert_includes desc, '"url"'
+    assert_includes desc, '"method"'
+  end
+
+  def test_to_description_without_description_text
+    skill = Kernai::Skill.define(:bare) do
+      execute { |_| 'ok' }
+    end
+
+    desc = skill.to_description
+    assert_equal '- bare', desc
+  end
+
+  # --- Skill.listing ---
+
+  def test_listing_all
+    Kernai::Skill.define(:alpha) do
+      description 'Alpha skill'
+      input :x, String
+      execute { |_| 'a' }
+    end
+    Kernai::Skill.define(:beta) do
+      description 'Beta skill'
+      input :y, Integer
+      execute { |_| 'b' }
+    end
+
+    listing = Kernai::Skill.listing(:all)
+    assert_includes listing, '- alpha: Alpha skill'
+    assert_includes listing, '- beta: Beta skill'
+  end
+
+  def test_listing_scoped_to_names
+    Kernai::Skill.define(:alpha) do
+      description 'Alpha'
+      execute { |_| 'a' }
+    end
+    Kernai::Skill.define(:beta) do
+      description 'Beta'
+      execute { |_| 'b' }
+    end
+
+    listing = Kernai::Skill.listing([:alpha])
+    assert_includes listing, '- alpha'
+    refute_includes listing, '- beta'
+  end
+
+  def test_listing_with_nil_returns_no_skills
+    assert_equal 'No skills available.', Kernai::Skill.listing(nil)
+  end
+
+  def test_listing_respects_allowed_skills
+    Kernai::Skill.define(:allowed) do
+      description 'Allowed'
+      execute { |_| 'ok' }
+    end
+    Kernai::Skill.define(:forbidden) do
+      description 'Forbidden'
+      execute { |_| 'no' }
+    end
+    Kernai.config.allowed_skills = [:allowed]
+
+    listing = Kernai::Skill.listing(:all)
+    assert_includes listing, '- allowed'
+    refute_includes listing, '- forbidden'
+  end
+
+  def test_listing_empty_registry
+    assert_equal 'No skills available.', Kernai::Skill.listing(:all)
+  end
 end

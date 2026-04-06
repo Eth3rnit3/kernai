@@ -12,23 +12,6 @@ class TestInstructionBuilder < Minitest::Test
       input :query, String
       execute { |p| p[:query] }
     end
-
-    Kernai::Skill.define(:calculator) do
-      description 'Evaluate a math expression'
-      input :expression, String
-      execute { |p| eval(p[:expression]).to_s }
-    end
-
-    Kernai::Skill.define(:api_call) do
-      description 'Call an external API'
-      input :url, String
-      input :method, String, default: 'GET'
-      execute { |_p| 'ok' }
-    end
-
-    Kernai::Skill.define(:bare_skill) do
-      execute { |_| 'no description' }
-    end
   end
 
   # --- Base behavior ---
@@ -45,48 +28,16 @@ class TestInstructionBuilder < Minitest::Test
     assert_includes result, 'plan'
   end
 
-  def test_includes_skill_descriptions
+  def test_includes_skills_command_hint
     result = Kernai::InstructionBuilder.new('Base.', skills: [:search]).build
-    assert_includes result, 'search'
-    assert_includes result, 'Search documents by keyword'
+    assert_includes result, '/skills'
+    assert_includes result, 'name="/skills"'
   end
 
-  # --- Skill formatting ---
-
-  def test_single_input_skill_shows_usage
+  def test_does_not_inject_skill_descriptions
     result = Kernai::InstructionBuilder.new('Base.', skills: [:search]).build
-    assert_includes result, 'name="search"'
-    assert_includes result, 'query'
-  end
-
-  def test_multi_input_skill_shows_json_usage
-    result = Kernai::InstructionBuilder.new('Base.', skills: [:api_call]).build
-    assert_includes result, 'url'
-    assert_includes result, 'method'
-    assert_includes result, 'GET'
-  end
-
-  def test_skill_without_description
-    result = Kernai::InstructionBuilder.new('Base.', skills: [:bare_skill]).build
-    assert_includes result, 'bare_skill'
-  end
-
-  def test_multiple_skills
-    result = Kernai::InstructionBuilder.new('Base.', skills: %i[search calculator]).build
-    assert_includes result, 'search'
-    assert_includes result, 'calculator'
-    assert_includes result, 'Search documents'
-    assert_includes result, 'Evaluate a math'
-  end
-
-  # --- Skills: :all ---
-
-  def test_all_skills
-    result = Kernai::InstructionBuilder.new('Base.', skills: :all).build
-    assert_includes result, 'search'
-    assert_includes result, 'calculator'
-    assert_includes result, 'api_call'
-    assert_includes result, 'bare_skill'
+    refute_includes result, 'Search documents by keyword'
+    refute_includes result, 'Available skills'
   end
 
   # --- Edge cases ---
@@ -94,13 +45,7 @@ class TestInstructionBuilder < Minitest::Test
   def test_empty_skills_array_still_adds_protocol
     result = Kernai::InstructionBuilder.new('Base.', skills: []).build
     assert_includes result, '<block type="final">'
-    refute_includes result, 'Available skills'
-  end
-
-  def test_unknown_skill_is_skipped
-    result = Kernai::InstructionBuilder.new('Base.', skills: %i[search nonexistent]).build
-    assert_includes result, 'search'
-    refute_includes result, 'nonexistent'
+    assert_includes result, '/skills'
   end
 
   def test_nil_skills_returns_base_only
@@ -112,7 +57,13 @@ class TestInstructionBuilder < Minitest::Test
     builder = Kernai::InstructionBuilder.new(-> { 'Dynamic.' }, skills: [:search])
     result = builder.build
     assert_includes result, 'Dynamic.'
-    assert_includes result, 'search'
+    assert_includes result, '/skills'
+  end
+
+  def test_skills_all_still_adds_protocol_only
+    result = Kernai::InstructionBuilder.new('Base.', skills: :all).build
+    assert_includes result, '/skills'
+    refute_includes result, 'Search documents by keyword'
   end
 end
 
@@ -136,9 +87,9 @@ class TestAgentWithSkills < Minitest::Test
 
     result = agent.resolve_instructions
     assert_includes result, 'You are a travel assistant.'
-    assert_includes result, 'weather'
-    assert_includes result, 'Get weather for a city'
+    assert_includes result, '/skills'
     assert_includes result, '<block type="command"'
+    refute_includes result, 'Get weather for a city'
   end
 
   def test_agent_without_skills_is_unchanged
@@ -160,7 +111,7 @@ class TestAgentWithSkills < Minitest::Test
     r2 = agent.resolve_instructions
     assert_includes r1, 'Version 1'
     assert_includes r2, 'Version 2'
-    assert_includes r1, 'weather'
+    assert_includes r1, '/skills'
   end
 
   def test_agent_skills_all
@@ -172,7 +123,8 @@ class TestAgentWithSkills < Minitest::Test
 
     agent = Kernai::Agent.new(instructions: 'Base.', skills: :all)
     result = agent.resolve_instructions
-    assert_includes result, 'weather'
-    assert_includes result, 'search'
+    assert_includes result, '/skills'
+    refute_includes result, 'Search things'
+    refute_includes result, 'Get weather'
   end
 end

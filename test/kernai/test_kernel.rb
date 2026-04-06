@@ -543,4 +543,189 @@ class TestKernel < Minitest::Test
     result = Kernai::Kernel.run(@agent, 'Go')
     assert_equal 'OK', result
   end
+
+  # --- Built-in /skills command ---
+
+  def test_skills_command_returns_listing
+    Kernai::Skill.define(:search) do
+      description 'Search documents'
+      input :query, String
+      execute { |p| p[:query] }
+    end
+
+    agent = Kernai::Agent.new(
+      instructions: 'You are helpful.',
+      provider: @provider,
+      model: 'test',
+      max_steps: 5,
+      skills: :all
+    )
+
+    @provider.respond_with(
+      '<block type="command" name="/skills"></block>',
+      '<block type="final">Got it</block>'
+    )
+
+    result = Kernai::Kernel.run(agent, 'What can you do?')
+    assert_equal 'Got it', result
+
+    # Second call should include the skill listing as a result message
+    second_call = @provider.calls[1]
+    result_msg = second_call[:messages].find { |m| m[:role] == :user && m[:content].include?('name="/skills"') }
+    assert result_msg, 'Skill listing should be injected as result'
+    assert_includes result_msg[:content], 'search'
+    assert_includes result_msg[:content], 'Search documents'
+  end
+
+  def test_skills_command_scoped_to_agent_skills
+    Kernai::Skill.define(:search) do
+      description 'Search'
+      input :query, String
+      execute { |_| 'ok' }
+    end
+    Kernai::Skill.define(:hidden) do
+      description 'Hidden skill'
+      execute { |_| 'secret' }
+    end
+
+    agent = Kernai::Agent.new(
+      instructions: 'You are helpful.',
+      provider: @provider,
+      model: 'test',
+      max_steps: 5,
+      skills: [:search]
+    )
+
+    @provider.respond_with(
+      '<block type="command" name="/skills"></block>',
+      '<block type="final">OK</block>'
+    )
+
+    Kernai::Kernel.run(agent, 'List skills')
+
+    second_call = @provider.calls[1]
+    result_msg = second_call[:messages].find { |m| m[:role] == :user && m[:content].include?('name="/skills"') }
+    assert_includes result_msg[:content], 'search'
+    refute_includes result_msg[:content], 'hidden'
+  end
+
+  def test_skills_command_reflects_dynamic_changes
+    Kernai::Skill.define(:initial) do
+      description 'Initial skill'
+      input :x, String
+      execute { |_| 'ok' }
+    end
+
+    agent = Kernai::Agent.new(
+      instructions: 'You are helpful.',
+      provider: @provider,
+      model: 'test',
+      max_steps: 5,
+      skills: :all
+    )
+
+    # First call: /skills, then register a new skill mid-loop via on_call
+    call_count = 0
+    @provider.on_call do |_messages, _model|
+      call_count += 1
+      if call_count == 1
+        '<block type="command" name="/skills"></block>'
+      elsif call_count == 2
+        # Register new skill between steps
+        Kernai::Skill.define(:dynamic) do
+          description 'Dynamic skill'
+          input :y, String
+          execute { |_| 'dynamic' }
+        end
+        '<block type="command" name="/skills"></block>'
+      else
+        '<block type="final">Done</block>'
+      end
+    end
+
+    Kernai::Kernel.run(agent, 'Check skills')
+
+    # First /skills result should only have :initial
+    first_result = @provider.calls[1][:messages].find do |m|
+      m[:role] == :user && m[:content].include?('name="/skills"')
+    end
+    assert_includes first_result[:content], 'initial'
+    refute_includes first_result[:content], 'dynamic'
+
+    # Second /skills result should have both
+    second_result = @provider.calls[2][:messages].select do |m|
+      m[:role] == :user && m[:content].include?('name="/skills"')
+    end.last
+    assert_includes second_result[:content], 'initial'
+    assert_includes second_result[:content], 'dynamic'
+  end
+
+  def test_unknown_builtin_command_returns_error
+    @provider.respond_with(
+      '<block type="command" name="/unknown">test</block>',
+      '<block type="final">OK</block>'
+    )
+
+    result = Kernai::Kernel.run(@agent, 'Try unknown')
+    assert_equal 'OK', result
+
+    second_call = @provider.calls[1]
+    error_msg = second_call[:messages].find { |m| m[:content].include?('error') && m[:content].include?('/unknown') }
+    assert error_msg, 'Error should be injected for unknown builtin'
+  end
+
+  def test_skills_command_emits_event
+    Kernai::Skill.define(:ping) do
+      description 'Ping'
+      execute { |_| 'pong' }
+    end
+
+    agent = Kernai::Agent.new(
+      instructions: 'test',
+      provider: @provider,
+      model: 'test',
+      max_steps: 5,
+      skills: :all
+    )
+
+    @provider.respond_with(
+      '<block type="command" name="/skills"></block>',
+      '<block type="final">OK</block>'
+    )
+
+    events = []
+    Kernai::Kernel.run(agent, 'Go') { |e| events << e }
+
+    builtin_events = events.select { |e| e.type == :builtin_result }
+    assert_equal 1, builtin_events.size
+    assert_equal '/skills', builtin_events[0].data[:command]
+    assert_includes builtin_events[0].data[:result], 'ping'
+  end
+
+  def test_skills_command_recorded
+    Kernai::Skill.define(:test_skill) do
+      description 'Test'
+      execute { |_| 'ok' }
+    end
+
+    agent = Kernai::Agent.new(
+      instructions: 'test',
+      provider: @provider,
+      model: 'test',
+      max_steps: 5,
+      skills: :all
+    )
+
+    @provider.respond_with(
+      '<block type="command" name="/skills"></block>',
+      '<block type="final">OK</block>'
+    )
+
+    recorder = Kernai::Recorder.new
+    Kernai::Kernel.run(agent, 'Go', recorder: recorder)
+
+    builtin_entries = recorder.for_event(:builtin_result)
+    assert_equal 1, builtin_entries.size
+    assert_equal '/skills', builtin_entries[0][:data][:command]
+  end
 end
