@@ -12,12 +12,13 @@ module Kernai
 
   module Kernel
     class << self
-      def run(agent, input, provider: nil, &callback)
+      def run(agent, input, provider: nil, history: [], &callback)
         provider = resolve_provider(agent, provider)
         raise ProviderError, "No provider configured" unless provider
 
         messages = [
           Message.new(role: :system, content: agent.resolve_instructions),
+          *history.map { |m| Message.new(role: m[:role], content: m[:content]) },
           Message.new(role: :user, content: input)
         ]
 

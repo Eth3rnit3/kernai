@@ -386,6 +386,130 @@ class TestKernel < Minitest::Test
     assert_includes json_events[0].data, '"key"'
   end
 
+  # --- Conversation history ---
+
+  def test_history_empty_by_default
+    @provider.respond_with('<block type="final">OK</block>')
+    Kernai::Kernel.run(@agent, "Hi")
+
+    messages = @provider.last_call[:messages]
+    assert_equal 2, messages.size
+    assert_equal :system, messages[0][:role]
+    assert_equal :user, messages[1][:role]
+  end
+
+  def test_history_inserted_between_system_and_user
+    history = [
+      { role: :user, content: "What is 2+2?" },
+      { role: :assistant, content: "4" }
+    ]
+
+    @provider.respond_with('<block type="final">OK</block>')
+    Kernai::Kernel.run(@agent, "And 3+3?", history: history)
+
+    messages = @provider.last_call[:messages]
+    assert_equal 4, messages.size
+    assert_equal :system,    messages[0][:role]
+    assert_equal :user,      messages[1][:role]
+    assert_equal "What is 2+2?", messages[1][:content]
+    assert_equal :assistant, messages[2][:role]
+    assert_equal "4",        messages[2][:content]
+    assert_equal :user,      messages[3][:role]
+    assert_equal "And 3+3?", messages[3][:content]
+  end
+
+  def test_history_preserves_multiple_turns
+    history = [
+      { role: :user, content: "Turn 1" },
+      { role: :assistant, content: "Reply 1" },
+      { role: :user, content: "Turn 2" },
+      { role: :assistant, content: "Reply 2" }
+    ]
+
+    @provider.respond_with('<block type="final">OK</block>')
+    Kernai::Kernel.run(@agent, "Turn 3", history: history)
+
+    messages = @provider.last_call[:messages]
+    # system + 4 history + current user = 6
+    assert_equal 6, messages.size
+    assert_equal "Turn 1",  messages[1][:content]
+    assert_equal "Reply 1", messages[2][:content]
+    assert_equal "Turn 2",  messages[3][:content]
+    assert_equal "Reply 2", messages[4][:content]
+    assert_equal "Turn 3",  messages[5][:content]
+  end
+
+  def test_history_persists_across_tool_steps
+    Kernai::Skill.define(:greet) do
+      input :query, String
+      execute { |params| "Hello #{params[:query]}!" }
+    end
+
+    history = [
+      { role: :user, content: "My name is Alice" },
+      { role: :assistant, content: "Nice to meet you, Alice!" }
+    ]
+
+    @provider.respond_with(
+      '<block type="command" name="greet">Alice</block>',
+      '<block type="final">Greeted!</block>'
+    )
+
+    Kernai::Kernel.run(@agent, "Greet me", history: history)
+
+    # Both calls should include the history
+    first_messages = @provider.calls[0][:messages]
+    second_messages = @provider.calls[1][:messages]
+
+    # First call: system + history(2) + user = 4
+    assert_equal 4, first_messages.size
+    assert_equal "My name is Alice", first_messages[1][:content]
+
+    # Second call: system + history(2) + user + assistant + skill_result = 6
+    assert_equal 6, second_messages.size
+    assert_equal "My name is Alice", second_messages[1][:content]
+  end
+
+  def test_history_with_hot_reload_instructions
+    call_count = 0
+    instructions = -> { call_count += 1; "Instructions v#{call_count}" }
+
+    agent = Kernai::Agent.new(
+      instructions: instructions,
+      provider: @provider,
+      model: "test",
+      max_steps: 5
+    )
+
+    Kernai::Skill.define(:noop_hist) do
+      input :query, String
+      execute { |_| "ok" }
+    end
+
+    history = [
+      { role: :user, content: "Previous question" },
+      { role: :assistant, content: "Previous answer" }
+    ]
+
+    @provider.respond_with(
+      '<block type="command" name="noop_hist">go</block>',
+      '<block type="final">Done</block>'
+    )
+
+    Kernai::Kernel.run(agent, "New question", history: history)
+
+    # Both steps should have history AND updated system instructions
+    first_messages = @provider.calls[0][:messages]
+    second_messages = @provider.calls[1][:messages]
+
+    assert_includes first_messages[0][:content], "v"
+    assert_equal "Previous question", first_messages[1][:content]
+
+    assert_includes second_messages[0][:content], "v"
+    assert_equal "Previous question", second_messages[1][:content]
+    refute_equal first_messages[0][:content], second_messages[0][:content]
+  end
+
   # --- Allowed skills nil means all allowed ---
 
   def test_allowed_skills_nil_allows_all
