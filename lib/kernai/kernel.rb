@@ -97,6 +97,11 @@ module Kernai
 
         parser.on(:block_start) do |data|
           Kernai.logger.debug(event: "block.detected", type: data[:type])
+          callback&.call(Event.new(:block_start, data))
+        end
+
+        parser.on(:block_content) do |data|
+          callback&.call(Event.new(:block_content, data))
         end
 
         parser.on(:block_complete) do |block|
