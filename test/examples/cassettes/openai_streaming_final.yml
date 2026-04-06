@@ -1,0 +1,38 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://api.openai.com/v1/chat/completions
+    body:
+      encoding: UTF-8
+      string: ''
+    headers:
+      Content-Type:
+      - application/json
+      Authorization:
+      - Bearer <OPENAI_API_KEY>
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - text/event-stream
+    body:
+      encoding: UTF-8
+      string: |
+        data: {"id":"chatcmpl-test002","object":"chat.completion.chunk","created":1700000000,"model":"gpt-4.1","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+        data: {"id":"chatcmpl-test002","object":"chat.completion.chunk","created":1700000000,"model":"gpt-4.1","choices":[{"index":0,"delta":{"content":"<block type=\"final\">"},"finish_reason":null}]}
+
+        data: {"id":"chatcmpl-test002","object":"chat.completion.chunk","created":1700000000,"model":"gpt-4.1","choices":[{"index":0,"delta":{"content":"The answer"},"finish_reason":null}]}
+
+        data: {"id":"chatcmpl-test002","object":"chat.completion.chunk","created":1700000000,"model":"gpt-4.1","choices":[{"index":0,"delta":{"content":" to 2+2 is 4."},"finish_reason":null}]}
+
+        data: {"id":"chatcmpl-test002","object":"chat.completion.chunk","created":1700000000,"model":"gpt-4.1","choices":[{"index":0,"delta":{"content":"</block>"},"finish_reason":null}]}
+
+        data: {"id":"chatcmpl-test002","object":"chat.completion.chunk","created":1700000000,"model":"gpt-4.1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+        data: [DONE]
+  recorded_at: Thu, 01 Jan 2025 00:00:00 GMT
+recorded_with: VCR 6.3.1

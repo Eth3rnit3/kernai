@@ -1,0 +1,27 @@
+---
+http_interactions:
+- request:
+    method: post
+    uri: https://api.anthropic.com/v1/messages
+    body:
+      encoding: UTF-8
+      string: ''
+    headers:
+      Content-Type:
+      - application/json
+      X-Api-Key:
+      - <ANTHROPIC_API_KEY>
+      Anthropic-Version:
+      - '2023-06-01'
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+    body:
+      encoding: UTF-8
+      string: '{"id":"msg_test001","type":"message","role":"assistant","content":[{"type":"text","text":"<block type=\"final\">The answer to 2+2 is 4.</block>"}],"model":"claude-sonnet-4-20250514","stop_reason":"end_turn","usage":{"input_tokens":80,"output_tokens":25}}'
+  recorded_at: Thu, 01 Jan 2025 00:00:00 GMT
+recorded_with: VCR 6.3.1
