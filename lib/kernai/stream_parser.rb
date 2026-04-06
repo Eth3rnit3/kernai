@@ -28,8 +28,9 @@ module Kernai
         emit(:text_chunk, @tag_buffer) unless @tag_buffer.empty?
         @tag_buffer = +""
       when :block_content
-        emit(:text_chunk, @tag_buffer + @content_buffer) unless (@tag_buffer + @content_buffer).empty?
+        emit(:text_chunk, @content_buffer) unless @content_buffer.empty?
         @content_buffer = +""
+        @full_block_content = +""
         @tag_buffer = +""
       end
       @buffer = +""
@@ -41,6 +42,7 @@ module Kernai
       @buffer = +""
       @tag_buffer = +""
       @content_buffer = +""
+      @full_block_content = +""
       @current_type = nil
       @current_name = nil
       @close_tag = nil
@@ -123,6 +125,7 @@ module Kernai
         emit(:block_start, { type: @current_type, name: @current_name })
 
         @content_buffer = +""
+        @full_block_content = +""
         @tag_buffer = +""
         @state = :block_content
         @buffer = remainder
@@ -139,6 +142,7 @@ module Kernai
         emit(:block_start, { type: @current_type, name: @current_name })
 
         @content_buffer = +""
+        @full_block_content = +""
         @tag_buffer = +""
         @state = :block_content
         @buffer = remainder
@@ -162,15 +166,27 @@ module Kernai
 
         emit(:block_content, content) unless content.empty?
 
-        block = Block.new(type: @current_type, content: content, name: @current_name)
+        full_content = @full_block_content + content
+        block = Block.new(type: @current_type, content: full_content, name: @current_name)
         emit(:block_complete, block)
 
         @content_buffer = +""
+        @full_block_content = +""
         @current_type = nil
         @current_name = nil
         @close_tag = nil
         @state = :text
         @buffer = remainder
+      else
+        # Emit safe content incrementally, keeping a tail buffer
+        # to avoid emitting partial closing tags as content
+        safe_length = @content_buffer.length - (@close_tag.length - 1)
+        if safe_length > 0
+          safe_content = @content_buffer[0...safe_length]
+          @full_block_content << safe_content
+          @content_buffer = @content_buffer[safe_length..]
+          emit(:block_content, safe_content)
+        end
       end
     end
 

@@ -291,4 +291,48 @@ class TestStreamParser < Minitest::Test
     assert_equal "search", completes[1][1].name
     assert_equal :final, completes[2][1].type
   end
+
+  # -- Incremental streaming --
+
+  def test_block_content_streams_incrementally
+    register_all_callbacks
+
+    @parser.push('<final>')
+    @parser.push("Hello, ")
+    @parser.push("this is a ")
+    @parser.push("long streamed ")
+    @parser.push("response.")
+    @parser.push("</final>")
+
+    contents = @events.select { |e, _| e == :block_content }
+    # Should have multiple incremental content events, not just one
+    assert contents.length > 1, "Expected multiple block_content events for incremental streaming, got #{contents.length}"
+
+    combined = contents.map { |_, d| d }.join
+    assert_equal "Hello, this is a long streamed response.", combined
+
+    completes = @events.select { |e, _| e == :block_complete }
+    assert_equal 1, completes.length
+    assert_equal "Hello, this is a long streamed response.", completes.first[1].content
+  end
+
+  def test_block_content_streams_with_canonical_syntax
+    register_all_callbacks
+
+    @parser.push('<block type="final">')
+    @parser.push("chunk1 ")
+    @parser.push("chunk2 ")
+    @parser.push("chunk3")
+    @parser.push("</block>")
+
+    contents = @events.select { |e, _| e == :block_content }
+    assert contents.length > 1, "Expected multiple block_content events"
+
+    combined = contents.map { |_, d| d }.join
+    assert_equal "chunk1 chunk2 chunk3", combined
+
+    completes = @events.select { |e, _| e == :block_complete }
+    assert_equal 1, completes.length
+    assert_equal "chunk1 chunk2 chunk3", completes.first[1].content
+  end
 end
