@@ -24,9 +24,12 @@ class TestOllamaProvider < Minitest::Test
         model: 'gemma3:27b'
       )
 
-      assert_includes result, 'block'
-      assert_includes result, 'final'
-      assert_includes result, '4'
+      assert_kind_of Kernai::LlmResponse, result
+      assert_includes result.content, 'block'
+      assert_includes result.content, 'final'
+      assert_includes result.content, '4'
+      assert_operator result.prompt_tokens, :>, 0
+      assert_operator result.completion_tokens, :>, 0
     end
   end
 
@@ -40,7 +43,7 @@ class TestOllamaProvider < Minitest::Test
         model: 'gemma3:27b'
       )
 
-      parsed = Kernai::Parser.parse(response)
+      parsed = Kernai::Parser.parse(response.content)
       assert_equal 2, parsed[:blocks].size
       assert_equal :plan, parsed[:blocks][0].type
       assert_equal :final, parsed[:blocks][1].type
@@ -62,8 +65,8 @@ class TestOllamaProvider < Minitest::Test
       ) { |chunk| chunks << chunk }
 
       assert chunks.size > 1, 'Should receive multiple chunks'
-      assert_equal result, chunks.join
-      assert_includes result, '4'
+      assert_equal result.content, chunks.join
+      assert_includes result.content, '4'
     end
   end
 

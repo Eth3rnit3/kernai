@@ -19,17 +19,25 @@ module Kernai
         system_msg, chat_messages = extract_system(messages)
         payload = build_payload(chat_messages, model, system: system_msg, stream: block_given?)
 
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         response = http_post(uri, payload)
 
         unless response.is_a?(Net::HTTPSuccess)
           raise Kernai::ProviderError, "Anthropic API error #{response.code}: #{response.body}"
         end
 
-        if block
-          parse_stream(response.body, &block)
-        else
-          parse_response(response.body)
-        end
+        content, usage = if block
+                           parse_stream(response.body, &block)
+                         else
+                           parse_response(response.body)
+                         end
+
+        Kernai::LlmResponse.new(
+          content: content,
+          latency_ms: elapsed_ms(started),
+          prompt_tokens: usage[:input_tokens],
+          completion_tokens: usage[:output_tokens]
+        )
       end
 
       private
@@ -73,30 +81,45 @@ module Kernai
       def parse_response(body)
         data = JSON.parse(body)
         content_blocks = data['content'] || []
-        content_blocks.select { |b| b['type'] == 'text' }.map { |b| b['text'] }.join
+        text = content_blocks.select { |b| b['type'] == 'text' }.map { |b| b['text'] }.join
+        raw_usage = data['usage'] || {}
+        [text, { input_tokens: raw_usage['input_tokens'], output_tokens: raw_usage['output_tokens'] }]
       end
 
       def parse_stream(body, &block)
         full_text = +''
+        usage = { input_tokens: nil, output_tokens: nil }
 
         body.each_line do |line|
           line = line.strip
           next if line.empty?
           next unless line.start_with?('data: ')
 
-          data = line.sub('data: ', '')
-          parsed = JSON.parse(data)
+          parsed = JSON.parse(line.sub('data: ', ''))
+          type = parsed['type']
 
-          next unless parsed['type'] == 'content_block_delta'
+          case type
+          when 'message_start'
+            start_usage = parsed.dig('message', 'usage') || {}
+            usage[:input_tokens] = start_usage['input_tokens']
+            usage[:output_tokens] = start_usage['output_tokens']
+          when 'message_delta'
+            delta_usage = parsed['usage'] || {}
+            usage[:output_tokens] = delta_usage['output_tokens'] if delta_usage['output_tokens']
+          when 'content_block_delta'
+            text = parsed.dig('delta', 'text')
+            next unless text && !text.empty?
 
-          text = parsed.dig('delta', 'text')
-          if text && !text.empty?
             full_text << text
             block.call(text)
           end
         end
 
-        full_text
+        [full_text, usage]
+      end
+
+      def elapsed_ms(started)
+        ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
       end
     end
   end

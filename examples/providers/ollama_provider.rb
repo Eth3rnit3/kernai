@@ -18,17 +18,19 @@ module Kernai
         uri = URI("#{@base_url}/api/chat")
         payload = build_payload(messages, model, stream: block_given?)
 
-        if block
-          stream_request(uri, payload, &block)
-        else
-          response = http_post(uri, payload)
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        content, usage = if block
+                           stream_request(uri, payload, &block)
+                         else
+                           non_stream_request(uri, payload)
+                         end
 
-          unless response.is_a?(Net::HTTPSuccess)
-            raise Kernai::ProviderError, "Ollama API error #{response.code}: #{response.body}"
-          end
-
-          parse_response(response.body)
-        end
+        Kernai::LlmResponse.new(
+          content: content,
+          latency_ms: elapsed_ms(started),
+          prompt_tokens: usage['prompt_eval_count'],
+          completion_tokens: usage['eval_count']
+        )
       end
 
       private
@@ -39,6 +41,16 @@ module Kernai
           messages: messages.map { |m| { 'role' => m[:role].to_s, 'content' => m[:content] } },
           stream: stream
         }
+      end
+
+      def non_stream_request(uri, payload)
+        response = http_post(uri, payload)
+
+        unless response.is_a?(Net::HTTPSuccess)
+          raise Kernai::ProviderError, "Ollama API error #{response.code}: #{response.body}"
+        end
+
+        parse_response(response.body)
       end
 
       def http_post(uri, payload)
@@ -60,11 +72,13 @@ module Kernai
 
       def parse_response(body)
         data = JSON.parse(body)
-        data.dig('message', 'content') || ''
+        content = data.dig('message', 'content') || ''
+        [content, data]
       end
 
       def stream_request(uri, payload, &block)
         full_text = +''
+        final_usage = {}
 
         http = Net::HTTP.new(uri.host, uri.port)
         http.use_ssl = (uri.scheme == 'https')
@@ -86,27 +100,32 @@ module Kernai
               line = buffer.slice!(0, idx + 1).strip
               next if line.empty?
 
-              parsed = JSON.parse(line)
-              content = parsed.dig('message', 'content')
-              if content && !content.empty?
-                full_text << content
-                block.call(content)
-              end
+              final_usage = consume_stream_line(line, full_text, &block)
             end
           end
 
-          # Handle remaining buffer
-          unless buffer.strip.empty?
-            parsed = JSON.parse(buffer.strip)
-            content = parsed.dig('message', 'content')
-            if content && !content.empty?
-              full_text << content
-              block.call(content)
-            end
-          end
+          final_usage = consume_stream_line(buffer.strip, full_text, &block) unless buffer.strip.empty?
         end
 
-        full_text
+        [full_text, final_usage]
+      end
+
+      # Parses one JSON line from the Ollama stream, appends any delta to
+      # `full_text` and yields it to the caller. Returns the raw hash so the
+      # final `done: true` frame (which carries prompt_eval_count /
+      # eval_count) can surface as usage metadata.
+      def consume_stream_line(line, full_text, &block)
+        parsed = JSON.parse(line)
+        content = parsed.dig('message', 'content')
+        if content && !content.empty?
+          full_text << content
+          block.call(content)
+        end
+        parsed
+      end
+
+      def elapsed_ms(started)
+        ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
       end
     end
   end

@@ -24,9 +24,12 @@ class TestOpenaiProvider < Minitest::Test
         model: 'gpt-4.1'
       )
 
-      assert_includes result, 'block'
-      assert_includes result, 'final'
-      assert_includes result, '4'
+      assert_kind_of Kernai::LlmResponse, result
+      assert_includes result.content, 'block'
+      assert_includes result.content, 'final'
+      assert_includes result.content, '4'
+      assert_operator result.prompt_tokens, :>, 0
+      assert_operator result.completion_tokens, :>, 0
     end
   end
 
@@ -40,7 +43,7 @@ class TestOpenaiProvider < Minitest::Test
         model: 'gpt-4.1'
       )
 
-      parsed = Kernai::Parser.parse(response)
+      parsed = Kernai::Parser.parse(response.content)
       assert_equal 1, parsed[:blocks].size
       assert_equal :final, parsed[:blocks][0].type
       assert_includes parsed[:blocks][0].content, '4'
@@ -61,8 +64,8 @@ class TestOpenaiProvider < Minitest::Test
       ) { |chunk| chunks << chunk }
 
       assert chunks.size > 1, 'Should receive multiple chunks'
-      assert_equal result, chunks.join
-      assert_includes result, '4'
+      assert_equal result.content, chunks.join
+      assert_includes result.content, '4'
     end
   end
 

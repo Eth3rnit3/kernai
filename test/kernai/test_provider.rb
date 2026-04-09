@@ -16,13 +16,14 @@ class TestProvider < Minitest::Test
   def test_custom_subclass_can_implement_call
     custom_class = Class.new(Kernai::Provider) do
       def call(messages:, model:)
-        'custom response'
+        Kernai::LlmResponse.new(content: 'custom response', latency_ms: 1)
       end
     end
 
     provider = custom_class.new
     result = provider.call(messages: [{ role: 'user', content: 'hello' }], model: 'test-model')
-    assert_equal 'custom response', result
+    assert_kind_of Kernai::LlmResponse, result
+    assert_equal 'custom response', result.content
   end
 
   def test_not_implemented_error_includes_subclass_name

@@ -17,17 +17,26 @@ module Kernai
         uri = URI(API_URL)
         payload = build_payload(messages, model, stream: block_given?)
 
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         response = http_post(uri, payload)
 
         unless response.is_a?(Net::HTTPSuccess)
           raise Kernai::ProviderError, "OpenAI API error #{response.code}: #{response.body}"
         end
 
-        if block
-          parse_stream(response.body, &block)
-        else
-          parse_response(response.body)
-        end
+        content, usage = if block
+                           parse_stream(response.body, &block)
+                         else
+                           parse_response(response.body)
+                         end
+
+        Kernai::LlmResponse.new(
+          content: content,
+          latency_ms: elapsed_ms(started),
+          prompt_tokens: usage['prompt_tokens'],
+          completion_tokens: usage['completion_tokens'],
+          total_tokens: usage['total_tokens']
+        )
       end
 
       private
@@ -37,7 +46,10 @@ module Kernai
           model: model,
           messages: messages.map { |m| { 'role' => m[:role].to_s, 'content' => m[:content] } }
         }
-        payload[:stream] = true if stream
+        if stream
+          payload[:stream] = true
+          payload[:stream_options] = { 'include_usage' => true }
+        end
         payload
       end
 
@@ -56,11 +68,13 @@ module Kernai
 
       def parse_response(body)
         data = JSON.parse(body)
-        data.dig('choices', 0, 'message', 'content') || ''
+        content = data.dig('choices', 0, 'message', 'content') || ''
+        [content, data['usage'] || {}]
       end
 
       def parse_stream(body, &block)
         full_text = +''
+        usage = {}
 
         body.each_line do |line|
           line = line.strip
@@ -71,14 +85,20 @@ module Kernai
           next if data == '[DONE]'
 
           parsed = JSON.parse(data)
+          usage = parsed['usage'] if parsed['usage']
+
           content = parsed.dig('choices', 0, 'delta', 'content')
-          if content && !content.empty?
-            full_text << content
-            block.call(content)
-          end
+          next unless content && !content.empty?
+
+          full_text << content
+          block.call(content)
         end
 
-        full_text
+        [full_text, usage]
+      end
+
+      def elapsed_ms(started)
+        ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
       end
     end
   end

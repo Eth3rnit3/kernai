@@ -293,9 +293,9 @@ class TestIntegration < Minitest::Test
   def test_provider_subclass_works_with_kernel
     custom_provider = Class.new(Kernai::Provider) do
       def call(messages:, model:, &block)
-        response = '<block type="final">Custom provider response</block>'
-        response.each_char { |c| block.call(c) } if block
-        response
+        text = '<block type="final">Custom provider response</block>'
+        text.each_char { |c| block.call(c) } if block
+        Kernai::LlmResponse.new(content: text, latency_ms: 1)
       end
     end
 

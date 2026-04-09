@@ -13,7 +13,8 @@ class TestMockProvider < Minitest::Test
   def test_respond_with_single_response
     @provider.respond_with('Hello!')
     result = @provider.call(messages: [{ role: 'user', content: 'hi' }], model: 'test')
-    assert_equal 'Hello!', result
+    assert_kind_of Kernai::LlmResponse, result
+    assert_equal 'Hello!', result.content
   end
 
   def test_respond_with_multiple_responses_consumed_in_order
@@ -23,9 +24,9 @@ class TestMockProvider < Minitest::Test
     r2 = @provider.call(messages: [], model: 'test')
     r3 = @provider.call(messages: [], model: 'test')
 
-    assert_equal 'first', r1
-    assert_equal 'second', r2
-    assert_equal 'third', r3
+    assert_equal 'first', r1.content
+    assert_equal 'second', r2.content
+    assert_equal 'third', r3.content
   end
 
   def test_last_response_repeats_when_exhausted
@@ -36,8 +37,8 @@ class TestMockProvider < Minitest::Test
     r3 = @provider.call(messages: [], model: 'test')
     r4 = @provider.call(messages: [], model: 'test')
 
-    assert_equal 'two', r3
-    assert_equal 'two', r4
+    assert_equal 'two', r3.content
+    assert_equal 'two', r4.content
   end
 
   def test_streaming_mode_yields_chars_to_block
@@ -54,7 +55,29 @@ class TestMockProvider < Minitest::Test
   def test_streaming_mode_still_returns_full_response
     @provider.respond_with('Hello')
     result = @provider.call(messages: [], model: 'test') { |_c| }
-    assert_equal 'Hello', result
+    assert_equal 'Hello', result.content
+  end
+
+  def test_response_carries_latency_and_nil_tokens_by_default
+    @provider.respond_with('ok')
+    result = @provider.call(messages: [], model: 'test')
+
+    assert result.latency_ms >= 0
+    assert_nil result.prompt_tokens
+    assert_nil result.completion_tokens
+    assert_nil result.total_tokens
+  end
+
+  def test_with_token_counter_populates_usage
+    @provider
+      .respond_with('answer')
+      .with_token_counter { |_m, content| { prompt_tokens: 12, completion_tokens: content.length } }
+
+    result = @provider.call(messages: [{ role: 'user', content: 'hi' }], model: 'test')
+
+    assert_equal 12, result.prompt_tokens
+    assert_equal 6, result.completion_tokens
+    assert_equal 18, result.total_tokens
   end
 
   def test_call_recording_calls
@@ -96,7 +119,7 @@ class TestMockProvider < Minitest::Test
       messages: [{ role: 'user', content: 'ping' }],
       model: 'claude'
     )
-    assert_equal 'dynamic: ping via claude', result
+    assert_equal 'dynamic: ping via claude', result.content
   end
 
   def test_on_call_takes_precedence_over_respond_with
@@ -104,7 +127,7 @@ class TestMockProvider < Minitest::Test
     @provider.on_call { |_m, _model| 'dynamic' }
 
     result = @provider.call(messages: [], model: 'test')
-    assert_equal 'dynamic', result
+    assert_equal 'dynamic', result.content
   end
 
   def test_reset_clears_state
@@ -117,12 +140,12 @@ class TestMockProvider < Minitest::Test
     assert_equal 0, @provider.call_count
     assert_empty @provider.calls
     result = @provider.call(messages: [], model: 'test')
-    assert_equal '', result
+    assert_equal '', result.content
   end
 
   def test_empty_response_when_nothing_configured
     result = @provider.call(messages: [{ role: 'user', content: 'hello' }], model: 'test')
-    assert_equal '', result
+    assert_equal '', result.content
   end
 
   def test_respond_with_returns_self_for_chaining
