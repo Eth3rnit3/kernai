@@ -6,6 +6,13 @@ module Kernai
     CLOSE_TAG = '</block>'
     SHORTHAND_TYPES = Block::TYPES.map(&:to_s).freeze
 
+    # Used by locate_matching_close to count nested opens. We match any
+    # `<block` token followed by whitespace or `>` — even ones embedded in
+    # escaped JSON strings (`<block type=\"...\">`) — because the LLM often
+    # pastes literal examples of blocks inside plan JSON payloads.
+    NESTED_OPEN_LITERAL = '<block'
+    NESTED_OPEN_PATTERN = /<block(?:\s|>)/.freeze
+
     attr_reader :state
 
     def initialize
@@ -161,35 +168,84 @@ module Kernai
       @content_buffer << @buffer
       @buffer = +''
 
-      close_idx = @content_buffer.index(@close_tag)
+      close_idx = locate_matching_close(@content_buffer)
+
       if close_idx
-        content = @content_buffer[0...close_idx]
-        remainder = @content_buffer[(close_idx + @close_tag.length)..]
-
-        emit(:block_content, content) unless content.empty?
-
-        full_content = @full_block_content + content
-        block = Block.new(type: @current_type, content: full_content, name: @current_name)
-        emit(:block_complete, block)
-
-        @content_buffer = +''
-        @full_block_content = +''
-        @current_type = nil
-        @current_name = nil
-        @close_tag = nil
-        @state = :text
-        @buffer = remainder
+        finalize_block_content(close_idx)
       else
-        # Emit safe content incrementally, keeping a tail buffer
-        # to avoid emitting partial closing tags as content
-        safe_length = @content_buffer.length - (@close_tag.length - 1)
-        if safe_length.positive?
-          safe_content = @content_buffer[0...safe_length]
-          @full_block_content << safe_content
-          @content_buffer = @content_buffer[safe_length..]
-          emit(:block_content, safe_content)
+        emit_safe_prefix
+      end
+    end
+
+    def finalize_block_content(close_idx)
+      content = @content_buffer[0...close_idx]
+      remainder = @content_buffer[(close_idx + @close_tag.length)..]
+
+      emit(:block_content, content) unless content.empty?
+
+      full_content = @full_block_content + content
+      block = Block.new(type: @current_type, content: full_content, name: @current_name)
+      emit(:block_complete, block)
+
+      @content_buffer = +''
+      @full_block_content = +''
+      @current_type = nil
+      @current_name = nil
+      @close_tag = nil
+      @state = :text
+      @buffer = remainder
+    end
+
+    def emit_safe_prefix
+      # Keep a tail of (close_tag.length - 1) chars so we never emit a
+      # partial closing tag as content.
+      safe_length = @content_buffer.length - (@close_tag.length - 1)
+
+      # For full-form </block> closes, never advance past the first
+      # unresolved nested <block ...> — its own </block> might follow and
+      # we'd split in the middle of it.
+      if @close_tag == CLOSE_TAG
+        first_nested = @content_buffer.index(NESTED_OPEN_PATTERN)
+        safe_length = [safe_length, first_nested].min if first_nested
+      end
+
+      return unless safe_length.positive?
+
+      safe_content = @content_buffer[0...safe_length]
+      @full_block_content << safe_content
+      @content_buffer = @content_buffer[safe_length..]
+      emit(:block_content, safe_content)
+    end
+
+    # Scans the current content buffer for the close tag that actually
+    # matches the currently-open block, accounting for nested <block ...>
+    # occurrences that the model may have emitted inside the content (for
+    # example a plan JSON containing a literal example block as a string).
+    # Returns the index of the matching close tag or nil if it has not
+    # been seen yet.
+    def locate_matching_close(str)
+      return str.index(@close_tag) unless @close_tag == CLOSE_TAG
+
+      depth = 1
+      i = 0
+      while i < str.length
+        open_idx = str.index(NESTED_OPEN_PATTERN, i)
+        close_idx = str.index(CLOSE_TAG, i)
+
+        return nil unless close_idx
+
+        if open_idx && open_idx < close_idx
+          depth += 1
+          i = open_idx + NESTED_OPEN_LITERAL.length
+        else
+          depth -= 1
+          return close_idx if depth.zero?
+
+          i = close_idx + CLOSE_TAG.length
         end
       end
+
+      nil
     end
 
     def emit(event, data)
