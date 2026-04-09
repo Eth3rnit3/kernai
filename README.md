@@ -102,10 +102,11 @@ User Input
 
 | Component | Role |
 |-----------|------|
-| **Kernel** | Execution loop — orchestrates messages, provider calls, block dispatch, and skill execution |
-| **Agent** | Configuration holder — instructions, provider, model, max steps |
-| **Skill** | Callable tools with typed inputs, validation, and a thread-safe registry |
-| **Block** | Structured XML protocol unit with type (`command`, `final`, `json`, `plan`, `result`, `error`) and optional name |
+| **Kernel** | Execution loop — orchestrates messages, provider calls, block dispatch, skill AND protocol execution |
+| **Agent** | Configuration holder — instructions, provider, model, max steps, skill + protocol whitelists |
+| **Skill** | Local Ruby callables with typed inputs, validation, and a thread-safe registry |
+| **Protocol** | Registry of external protocol adapters (MCP, A2A, …) — each claims a block type |
+| **Block** | Structured XML protocol unit with type (`command`, `final`, `json`, `plan`, `result`, `error` or any registered protocol) and optional name |
 | **Parser** | Regex-based parser for complete text responses |
 | **StreamParser** | State-machine parser for streaming chunks — handles tags split across boundaries |
 | **Provider** | Abstract LLM backend interface with streaming support |
@@ -131,12 +132,13 @@ All structured communication between the LLM and the kernel uses XML blocks:
 
 | Type | Purpose | Kernel behavior |
 |------|---------|-----------------|
-| `command` | Invoke a skill | Executes skill, injects result as `user` message, continues loop |
+| `command` | Invoke a skill (local Ruby callable) | Executes skill, injects result as `user` message, continues loop |
+| *registered protocol* | Invoke an external protocol (e.g. `mcp`) | Dispatches to the registered handler, injects result, continues loop |
 | `final` | Agent's final answer | Stops the loop, returns content |
-| `plan` | Reasoning / chain of thought | Emits `:plan` event, continues |
+| `plan` | Reasoning / chain of thought (or structured workflow) | Emits `:plan` event, continues |
 | `json` | Structured data output | Emits `:json` event, continues |
-| `result` | Skill execution result (injected by kernel) | Read by LLM on next iteration |
-| `error` | Skill execution error (injected by kernel) | Read by LLM on next iteration |
+| `result` | Skill or protocol result (injected by kernel) | Read by LLM on next iteration |
+| `error` | Skill or protocol error (injected by kernel) | Read by LLM on next iteration |
 
 ### Conversation Model
 
@@ -197,6 +199,140 @@ When the LLM sends a command block, the kernel parses parameters automatically:
 - **JSON content** — parsed as a hash: `{"sql": "SELECT 1", "timeout": 60}`
 - **Plain text + single input** — wrapped into the skill's input name: `"SELECT 1"` becomes `{sql: "SELECT 1"}`
 - **Plain text + multiple inputs** — fallback to `{input: "..."}` 
+
+## Protocols
+
+Skills are **local** Ruby callables the agent invokes via `<block type="command">`.
+Protocols are **external** systems the agent addresses via their own block type.
+Both rails coexist and are dispatched by the kernel with the same observability
+guarantees (events, scope, duration, recorder).
+
+A protocol is any structured, extensible interface (MCP, A2A, a custom in-house
+system, …) that doesn't fit the "local Ruby function" model. The kernel ships
+with a generic registry so adapters can plug in without touching the core.
+
+### Registering a protocol
+
+```ruby
+Kernai::Protocol.register(:my_proto, documentation: <<~DOC) do |block, ctx|
+  My custom protocol. Accepts JSON requests and returns a string.
+DOC
+  request = JSON.parse(block.content)
+  MyBackend.handle(request)
+end
+```
+
+The agent then addresses the protocol directly:
+
+```xml
+<block type="my_proto">{"action": "do_something", "args": {"x": 1}}</block>
+```
+
+Results come back in `<block type="result" name="my_proto">`, errors in
+`<block type="error" name="my_proto">` — exactly like skills.
+
+### Handler contract
+
+A protocol handler receives `(block, ctx)` and may return:
+
+- a **String** — the kernel wraps it as `<block type="result" name="..."">`.
+- a **`Kernai::Message`** — used as-is (handler controls role and content).
+
+Any `StandardError` the handler raises is caught by the kernel and wrapped as
+an error block so the agent can observe and recover.
+
+### Built-in discovery
+
+A new built-in command `/protocols` lists every registered protocol and its
+documentation, in the same spirit as `/skills` and `/workflow`:
+
+```xml
+<block type="command" name="/protocols"></block>
+```
+
+Returns a JSON array `[{"name": "mcp", "documentation": "..."}]` that the
+agent can read to discover which external systems it has access to.
+
+### Agent-level whitelist
+
+```ruby
+Kernai::Agent.new(
+  instructions: "...",
+  provider: provider,
+  protocols: [:mcp]  # nil = all, [] = none, [:mcp] = whitelist
+)
+```
+
+### Using MCP (optional adapter)
+
+Kernai ships an optional MCP (Model Context Protocol) adapter that registers
+the `:mcp` protocol and bridges to the `ruby-mcp-client` gem:
+
+```ruby
+# Gemfile
+gem 'ruby-mcp-client'
+gem 'base64'   # required on Ruby >= 3.4 — ruby-mcp-client uses base64
+               # internally without declaring it as a runtime dependency
+```
+
+```ruby
+require 'kernai'
+require 'kernai/mcp'   # opt-in — requires the `ruby-mcp-client` gem
+
+Kernai::MCP.load('config/mcp.yml')
+```
+
+Example `config/mcp.yml`:
+
+```yaml
+servers:
+  filesystem:
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+
+  github:
+    transport: sse
+    url: https://mcp.example.com/sse
+    headers:
+      Authorization: "Bearer ${GITHUB_MCP_TOKEN}"
+```
+
+The agent then speaks MCP's native verbs directly — Kernai invents no
+vocabulary on top:
+
+```xml
+<block type="mcp">{"method":"servers/list"}</block>
+
+<block type="mcp">{"method":"tools/list","params":{"server":"filesystem"}}</block>
+
+<block type="mcp">{"method":"tools/describe","params":{"server":"filesystem","name":"read_text_file"}}</block>
+
+<block type="mcp">{"method":"tools/call","params":{
+  "server":"filesystem","name":"read_text_file",
+  "arguments":{"path":"/tmp/notes.md"}
+}}</block>
+```
+
+Supported methods (MCP spec + one Kernai extension for the multiplexing layer):
+
+| Method | Purpose |
+|---|---|
+| `servers/list` | *(Kernai ext)* list configured MCP servers |
+| `tools/list` | list tools, optionally filtered by `server` |
+| `tools/describe` | full JSON schema for one tool |
+| `tools/call` | execute a tool with arguments |
+| `resources/list` | list resources on a server |
+| `resources/read` | read a resource by URI |
+| `prompts/list` | list prompts on a server |
+| `prompts/get` | render a prompt template with arguments |
+
+Environment variables of the form `${VAR}` in the YAML config are expanded
+from `ENV` at load time — no secrets need to live in the file.
+
+**Zero-dependency preserved:** `require 'kernai'` still pulls in nothing
+external. `require 'kernai/mcp'` only succeeds if you've added
+`gem 'ruby-mcp-client'` (and `gem 'base64'` on Ruby >= 3.4) to your Gemfile.
 
 ## Agent
 
@@ -308,18 +444,26 @@ bundle exec rake test
 
 ```
 lib/kernai/
-  agent.rb          # Agent config and instruction management
-  kernel.rb         # Execution loop and orchestration
-  skill.rb          # Skill DSL, registry, and execution
-  block.rb          # Block types and handler registry
-  parser.rb         # Regex-based block parser (complete text)
-  stream_parser.rb  # State-machine block parser (streaming)
-  message.rb        # Conversation message abstraction
-  provider.rb       # Abstract LLM provider interface
-  config.rb         # Global configuration
-  logger.rb         # Structured event logging
+  agent.rb               # Agent config + skill/protocol whitelists
+  kernel.rb              # Execution loop, skill + protocol dispatch
+  skill.rb               # Skill DSL, registry, and execution
+  protocol.rb            # Generic protocol registry (pluggable block types)
+  mcp.rb                 # Optional MCP adapter (requires the `ruby-mcp-client` gem)
+  block.rb               # Block abstraction
+  parser.rb              # Regex-based block parser (complete text)
+  stream_parser.rb       # State-machine block parser (streaming)
+  message.rb             # Conversation message abstraction
+  provider.rb            # Abstract LLM provider interface
+  llm_response.rb        # Structured provider response with observability metadata
+  instruction_builder.rb # Assembles system prompts with skill/protocol hints
+  recorder.rb            # Append-only observability log (depth + task_id scoped)
+  plan.rb                # Workflow plan + task model
+  context.rb             # Execution context (depth, current task, recorder scope)
+  task_scheduler.rb      # DAG-aware sub-agent scheduler
+  config.rb              # Global configuration
+  logger.rb              # Structured event logging
   mock/
-    provider.rb     # Mock provider for testing
+    provider.rb          # Mock provider for testing
 ```
 
 ## License

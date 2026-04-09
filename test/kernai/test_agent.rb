@@ -79,4 +79,27 @@ class TestAgent < Minitest::Test
     agent.provider = provider
     assert_equal provider, agent.provider
   end
+
+  # --- protocols whitelist ---
+
+  def test_protocols_default_is_nil
+    agent = Kernai::Agent.new(instructions: 'test')
+    assert_nil agent.protocols
+  end
+
+  def test_protocols_can_be_set_at_init
+    agent = Kernai::Agent.new(instructions: 'test', protocols: [:mcp])
+    assert_equal [:mcp], agent.protocols
+  end
+
+  def test_protocols_can_be_empty_array
+    agent = Kernai::Agent.new(instructions: 'test', protocols: [])
+    assert_equal [], agent.protocols
+  end
+
+  def test_protocols_mutable_via_accessor
+    agent = Kernai::Agent.new(instructions: 'test')
+    agent.protocols = %i[mcp a2a]
+    assert_equal %i[mcp a2a], agent.protocols
+  end
 end

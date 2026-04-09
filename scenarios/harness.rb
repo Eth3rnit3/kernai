@@ -60,6 +60,8 @@ module Scenarios
       @instructions = nil
       @input = nil
       @max_steps = 10
+      @mcp_config = nil
+      @protocols = nil
     end
 
     def instructions(text = nil, &block)
@@ -76,6 +78,21 @@ module Scenarios
 
     def max_steps(n)
       @max_steps = n
+    end
+
+    # Activate the optional MCP adapter for this scenario. Accepts either a
+    # Hash matching the YAML layout (`{'servers' => {...}}`) or a path to a
+    # YAML file. Scenarios that need the `mcp_client` gem will skip
+    # gracefully if it isn't installed so the harness stays usable even
+    # without the optional dependency.
+    def mcp_config(config)
+      @mcp_config = config
+    end
+
+    # Restrict which protocols this scenario's agent may invoke. Usually
+    # left unset (meaning: all registered protocols allowed).
+    def protocols(list)
+      @protocols = list
     end
 
     def run!
@@ -95,6 +112,10 @@ module Scenarios
         Kernai::Skill.define(s[:name], &s[:block])
       end
 
+      # Optional: activate MCP adapter. Skip gracefully if the optional
+      # dependency is missing so the harness stays usable without it.
+      return unless setup_mcp!
+
       provider = PROVIDERS[provider_name].call
       @recorder = Kernai::Recorder.new
       @events = []
@@ -106,7 +127,8 @@ module Scenarios
         provider: provider,
         model: model,
         max_steps: @max_steps,
-        skills: skill_names.any? ? skill_names : nil
+        skills: skill_names.any? ? skill_names : nil,
+        protocols: @protocols
       )
 
       header(provider_name, model)
@@ -132,9 +154,54 @@ module Scenarios
 
       report(provider_name, model)
       save_log(provider_name, model)
+    ensure
+      teardown_mcp!
     end
 
     private
+
+    def setup_mcp!
+      return true unless @mcp_config
+
+      begin
+        require 'kernai/mcp'
+      rescue LoadError => e
+        skip_scenario("kernai/mcp cannot be loaded: #{e.message}")
+        return false
+      end
+
+      begin
+        if @mcp_config.is_a?(String)
+          Kernai::MCP.load(@mcp_config)
+        else
+          Kernai::MCP.setup(@mcp_config)
+        end
+        true
+      rescue Kernai::MCP::DependencyMissingError => e
+        skip_scenario(e.message)
+        false
+      rescue StandardError => e
+        skip_scenario("MCP setup failed: #{e.class}: #{e.message}")
+        false
+      end
+    end
+
+    def teardown_mcp!
+      return unless @mcp_config
+      return unless defined?(Kernai::MCP)
+
+      Kernai::MCP.shutdown
+    rescue StandardError
+      # best-effort
+    end
+
+    def skip_scenario(reason)
+      puts
+      puts "\e[1;33m  SKIPPED: #{reason}\e[0m"
+      puts "\e[33m  This scenario needs an MCP server. Install the mcp_client gem and any\e[0m"
+      puts "\e[33m  server binaries it spawns (e.g. @modelcontextprotocol/server-filesystem).\e[0m"
+      puts
+    end
 
     # --- Output ---
 
@@ -166,6 +233,15 @@ module Scenarios
       when :skill_error
         puts
         puts "\e[31m  !! #{event.data[:skill]}: #{event.data[:error]}\e[0m"
+      when :protocol_execute
+        puts
+        puts "\e[34m  -> #{event.data[:protocol]}: #{truncate(event.data[:request], 200)}\e[0m"
+      when :protocol_result
+        duration = event.data[:duration_ms]
+        puts "\e[32m  <- #{event.data[:protocol]} (#{duration}ms): #{truncate(event.data[:result], 200)}\e[0m"
+      when :protocol_error
+        duration = event.data[:duration_ms]
+        puts "\e[31m  !! #{event.data[:protocol]} (#{duration}ms): #{event.data[:error]}\e[0m"
       when :builtin_result
         puts
         puts "\e[36m  => #{event.data[:command]}: #{truncate(event.data[:result], 200)}\e[0m"
@@ -226,6 +302,19 @@ module Scenarios
         end
         entries.select { |e| e[:event] == :skill_error }.each do |e|
           puts "    \e[31mSkill error: #{e[:data][:error]}\e[0m"
+        end
+
+        # Show protocol calls
+        entries.select { |e| e[:event] == :protocol_execute }.each do |e|
+          puts "    \e[34mProtocol call: #{e[:data][:protocol]} #{truncate(e[:data][:request].to_s, 100)}\e[0m"
+        end
+        entries.select { |e| e[:event] == :protocol_result }.each do |e|
+          ms = e[:data][:duration_ms]
+          puts "    \e[32mProtocol result (#{ms}ms): #{truncate(e[:data][:result].to_s, 120)}\e[0m"
+        end
+        entries.select { |e| e[:event] == :protocol_error }.each do |e|
+          ms = e[:data][:duration_ms]
+          puts "    \e[31mProtocol error (#{ms}ms): #{e[:data][:error]}\e[0m"
         end
 
         # Show JSON blocks

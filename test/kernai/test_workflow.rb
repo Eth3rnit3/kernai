@@ -231,6 +231,37 @@ class TestWorkflow < Minitest::Test
     refute_includes captured_system, '/tasks'
   end
 
+  # Regression: sub-agents must inherit the parent's full max_steps budget.
+  # Previously they silently received parent.max_steps / 2, which left
+  # verbose models stuck at MaxStepsReachedError right after they had
+  # completed the useful work — the halved budget was not enough to emit
+  # a <final> block at the end of a realistic tool-calling loop.
+  def test_sub_agent_inherits_full_max_steps_from_parent
+    # Feed the sub-agent enough turns that it would exceed the old halved
+    # budget (parent.max_steps = 5, old sub budget = 2) but stay within
+    # the full inherited budget (= 5). A 3-turn sub-agent run proves the
+    # budget is > 2.
+    sub_steps = 0
+    wire(
+      manager: lambda { |step, _m|
+        step.zero? ? plan_block([{ id: 'long', input: 'work' }]) : '<block type="final">ok</block>'
+      },
+      sub: lambda do |_input, _messages|
+        sub_steps += 1
+        case sub_steps
+        when 1 then '<block type="command" name="/skills"></block>'
+        when 2 then '<block type="command" name="/skills"></block>'
+        when 3 then '<block type="command" name="/skills"></block>'
+        else        '<block type="final">sub-done</block>'
+        end
+      end
+    )
+
+    result = Kernai::Kernel.run(@agent, 'go')
+    assert_equal 'ok', result
+    assert_equal 4, sub_steps, 'sub-agent must be allowed more than parent.max_steps / 2 steps'
+  end
+
   # --- Isolation ---
 
   def test_parallel_sub_agents_run_in_isolation

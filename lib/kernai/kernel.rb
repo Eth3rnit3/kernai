@@ -91,6 +91,7 @@ module Kernai
           final_block = blocks.find { |b| b.type == :final }
           command_blocks = blocks.select { |b| b.type == :command }
           plan_blocks = blocks.select { |b| b.type == :plan }
+          protocol_blocks = blocks.select { |b| Protocol.registered?(b.type) }
 
           record(rec, ctx, step: step, event: :blocks_parsed, data: blocks.map(&:to_h))
 
@@ -108,11 +109,18 @@ module Kernai
               step: step,
               callback: callback
             )
-          elsif command_blocks.any?
-            # Commands take priority: execute them and continue the loop
-            # even if the LLM also sent a final block (it needs to see results first)
-            command_blocks.each do |block|
-              result_msg = execute_command(block, agent, ctx, rec, step, callback)
+          elsif command_blocks.any? || protocol_blocks.any?
+            # Actionable blocks take priority over `final`: execute them in
+            # the order the LLM emitted them so command/protocol interleaving
+            # stays deterministic, then continue the loop so the model can
+            # react to their results.
+            actionable = (command_blocks + protocol_blocks).sort_by { |b| blocks.index(b) }
+            actionable.each do |block|
+              result_msg = if command_blocks.include?(block)
+                             execute_command(block, agent, ctx, rec, step, callback)
+                           else
+                             execute_protocol(block, agent, ctx, rec, step, callback)
+                           end
               messages << result_msg
             end
           elsif final_block
@@ -121,8 +129,17 @@ module Kernai
             record(rec, ctx, step: step, event: :result, data: result)
             callback&.call(Event.new(:final, result))
             break
+          elsif informational_only?(blocks)
+            # The agent emitted <plan> and/or <json> but nothing actionable
+            # and no <final>. By the declared semantics of those blocks
+            # (reasoning/side-channel, not terminal) the turn is NOT over:
+            # small models often split "think" and "act" across turns. We
+            # inject a corrective feedback and let the loop run another
+            # step so the agent can follow up with an actual action.
+            messages << handle_informational_only(blocks, rec, ctx, step, callback)
           else
-            # No blocks or only informational blocks — treat raw response as result
+            # Truly no blocks — the agent replied with plain prose. Treat
+            # that as a chatbot-style final answer and return it as-is.
             result = llm_response.content
             record(rec, ctx, step: step, event: :result, data: result)
             break
@@ -164,6 +181,45 @@ module Kernai
         parser.on(:block_complete) do |block|
           blocks << block
         end
+      end
+
+      # --- Informational-only turn handling ---
+
+      # True when the parsed blocks contain at least one informational
+      # block (plan / json) and no actionable or terminal block. Used to
+      # detect the "agent is thinking but hasn't acted yet" state so the
+      # loop can continue instead of prematurely terminating.
+      def informational_only?(blocks)
+        return false if blocks.empty?
+
+        informational = blocks.any? { |b| %i[plan json].include?(b.type) }
+        return false unless informational
+
+        blocks.none? do |b|
+          b.type == :final ||
+            b.type == :command ||
+            Protocol.registered?(b.type)
+        end
+      end
+
+      def handle_informational_only(blocks, rec, ctx, step, callback)
+        kinds = blocks.map(&:type).uniq
+        Kernai.logger.info(event: 'agent.informational_only', kinds: kinds.join(','))
+        record(rec, ctx, step: step, event: :informational_only,
+                         data: { kinds: kinds.map(&:to_s) })
+        callback&.call(Event.new(:informational_only, { kinds: kinds }))
+
+        Message.new(
+          role: :user,
+          content: '<block type="error">You emitted only informational blocks ' \
+                   "(#{kinds.map(&:to_s).join(', ')}) but nothing actionable. " \
+                   'To make progress you must ALSO emit, in the same response, ' \
+                   'at least one of: <block type="command" name="..."> to call ' \
+                   'a skill, a protocol block such as <block type="mcp"> to call ' \
+                   'an external system, or <block type="final"> to end the turn. ' \
+                   'Reason with <plan> AND act in the same response — do not ' \
+                   'split thinking and action across turns.</block>'
+        )
       end
 
       # --- Plan / workflow handling ---
@@ -279,14 +335,23 @@ module Kernai
         end
       end
 
+      # Sub-agents inherit the parent's full max_steps budget. Previously
+      # we silently halved it, which made the same workflow succeed on a
+      # terse model and fail on a verbose one: small models spend their
+      # first 2-3 steps re-doing discovery (/skills, /protocols) before
+      # they can even start tooling, and the halved budget left them with
+      # no room to emit a final block after the actual work. Full
+      # inheritance is the simpler, more predictable contract: "a sub-agent
+      # has the same per-agent budget as its parent". The overall workflow
+      # cost is still bounded by (number_of_tasks * parent.max_steps).
       def build_sub_agent(parent)
-        sub_max = [parent.max_steps / 2, 3].max
         Agent.new(
           instructions: parent.instructions,
           provider: parent.provider,
           model: parent.model,
-          max_steps: sub_max,
-          skills: parent.skills
+          max_steps: parent.max_steps,
+          skills: parent.skills,
+          protocols: parent.protocols
         )
       end
 
@@ -331,6 +396,9 @@ module Kernai
         when '/tasks'
           payload = JSON.generate(tasks_snapshot(ctx))
           builtin_result(command_name, payload, rec, ctx, step, callback)
+        when '/protocols'
+          payload = JSON.generate(protocols_snapshot(agent))
+          builtin_result(command_name, payload, rec, ctx, step, callback)
         else
           Kernai.logger.error(event: 'builtin.execute', command: command_name, error: 'unknown')
           record(rec, ctx, step: step, event: :builtin_error,
@@ -363,6 +431,98 @@ module Kernai
           tasks: ctx.tasks.map(&:to_h),
           task_results: ctx.task_results
         }
+      end
+
+      # --- Protocol execution ---
+
+      def execute_protocol(block, agent, ctx, rec, step, callback)
+        protocol_name = block.type
+
+        if agent.protocols && !agent.protocols.map(&:to_sym).include?(protocol_name)
+          Kernai.logger.error(event: 'protocol.execute', protocol: protocol_name, error: 'not allowed')
+          record(rec, ctx, step: step, event: :protocol_error,
+                           data: { protocol: protocol_name, error: 'not allowed' })
+          callback&.call(Event.new(:protocol_error,
+                                   { protocol: protocol_name,
+                                     error: "Protocol '#{protocol_name}' is not allowed" }))
+          return Message.new(
+            role: :user,
+            content: "<block type=\"error\" name=\"#{protocol_name}\">" \
+                     "Protocol '#{protocol_name}' is not allowed</block>"
+          )
+        end
+
+        handler = Protocol.handler_for(protocol_name)
+        # Defensive: should never happen — the dispatcher only reaches here
+        # when Protocol.registered? returned true just a few lines above.
+        unless handler
+          Kernai.logger.error(event: 'protocol.execute', protocol: protocol_name, error: 'handler missing')
+          record(rec, ctx, step: step, event: :protocol_error,
+                           data: { protocol: protocol_name, error: 'handler missing' })
+          callback&.call(Event.new(:protocol_error,
+                                   { protocol: protocol_name, error: 'handler missing' }))
+          return Message.new(
+            role: :user,
+            content: "<block type=\"error\" name=\"#{protocol_name}\">" \
+                     "Protocol '#{protocol_name}' has no handler</block>"
+          )
+        end
+
+        Kernai.logger.info(event: 'protocol.execute', protocol: protocol_name)
+        record(rec, ctx, step: step, event: :protocol_execute,
+                         data: { protocol: protocol_name, request: block.content })
+        callback&.call(Event.new(:protocol_execute,
+                                 { protocol: protocol_name, request: block.content }))
+
+        started = monotonic_ms
+        begin
+          result = handler.call(block, ctx)
+          duration_ms = monotonic_ms - started
+
+          Kernai.logger.info(event: 'protocol.result', protocol: protocol_name, duration_ms: duration_ms)
+          record(rec, ctx, step: step, event: :protocol_result,
+                           data: { protocol: protocol_name, result: result, duration_ms: duration_ms })
+          callback&.call(Event.new(:protocol_result,
+                                   { protocol: protocol_name, result: result, duration_ms: duration_ms }))
+
+          normalize_protocol_result(protocol_name, result)
+        rescue StandardError => e
+          duration_ms = monotonic_ms - started
+          Kernai.logger.error(event: 'protocol.execute', protocol: protocol_name, error: e.message)
+          record(rec, ctx, step: step, event: :protocol_error,
+                           data: { protocol: protocol_name, error: e.message, duration_ms: duration_ms })
+          callback&.call(Event.new(:protocol_error,
+                                   { protocol: protocol_name, error: e.message, duration_ms: duration_ms }))
+
+          Message.new(
+            role: :user,
+            content: "<block type=\"error\" name=\"#{protocol_name}\">#{e.message}</block>"
+          )
+        end
+      end
+
+      # A protocol handler may return:
+      #   - a String  → wrapped by the kernel as <block type="result" name="...">
+      #   - a Message → used as-is (handler controls role + content entirely)
+      # This two-form contract is intentionally minimal and forward compatible:
+      # richer return types can be introduced later without breaking existing
+      # handlers.
+      def normalize_protocol_result(protocol_name, result)
+        return result if result.is_a?(Message)
+
+        Message.new(
+          role: :user,
+          content: "<block type=\"result\" name=\"#{protocol_name}\">#{result}</block>"
+        )
+      end
+
+      def protocols_snapshot(agent)
+        scope = agent.protocols&.map(&:to_sym)
+        Protocol.all.filter_map do |reg|
+          next if scope && !scope.include?(reg.name)
+
+          { name: reg.name.to_s, documentation: reg.documentation }
+        end
       end
 
       def execute_skill(skill_name, content, rec, ctx, step, callback)

@@ -65,6 +65,77 @@ class TestInstructionBuilder < Minitest::Test
     assert_includes result, '/skills'
     refute_includes result, 'Search documents by keyword'
   end
+
+  # --- Protocol awareness ---
+
+  def test_no_protocol_mention_when_no_protocols_registered
+    Kernai::Protocol.reset!
+    result = Kernai::InstructionBuilder.new('Base.', skills: [:search]).build
+    refute_includes result, '/protocols'
+    refute_includes result, 'external protocol'
+  end
+
+  def test_protocol_mention_when_at_least_one_registered
+    Kernai::Protocol.register(:fake) { |_b, _c| 'ok' }
+    result = Kernai::InstructionBuilder.new('Base.', skills: [:search]).build
+    assert_includes result, '/protocols'
+    assert_includes result, 'external protocol'
+  end
+
+  def test_protocol_mention_hidden_when_agent_opts_out
+    Kernai::Protocol.register(:fake) { |_b, _c| 'ok' }
+    result = Kernai::InstructionBuilder.new('Base.', skills: [:search], protocols: []).build
+    refute_includes result, '/protocols'
+    refute_includes result, 'external protocol'
+  end
+
+  def test_protocol_mention_when_whitelist_matches_registered
+    Kernai::Protocol.register(:fake) { |_b, _c| 'ok' }
+    result = Kernai::InstructionBuilder.new('Base.', skills: [:search], protocols: [:fake]).build
+    assert_includes result, '/protocols'
+  end
+
+  def test_protocol_mention_hidden_when_whitelist_matches_nothing_registered
+    Kernai::Protocol.register(:fake) { |_b, _c| 'ok' }
+    result = Kernai::InstructionBuilder.new('Base.', skills: [:search], protocols: [:other]).build
+    refute_includes result, '/protocols'
+  end
+
+  # Regression: an agent with no local skills but a registered protocol
+  # is still actionable through that protocol and MUST receive the block
+  # protocol rules. Previously this was short-circuited by `@skills.nil?`,
+  # which left protocol-only agents without any format guidance — they
+  # would narrate in prose and the kernel would terminate with the raw
+  # response as the final result.
+  def test_protocol_only_agent_still_receives_block_protocol
+    Kernai::Protocol.register(:fake) { |_b, _c| 'ok' }
+    result = Kernai::InstructionBuilder.new('Base.', skills: nil).build
+    assert_includes result, 'Base.'
+    assert_includes result, '<block type="command"'
+    assert_includes result, '<block type="final">'
+    assert_includes result, '/protocols'
+    assert_includes result, 'external protocol'
+  end
+
+  def test_protocol_only_agent_with_explicit_whitelist
+    Kernai::Protocol.register(:fake) { |_b, _c| 'ok' }
+    result = Kernai::InstructionBuilder.new('Base.', skills: nil, protocols: [:fake]).build
+    assert_includes result, '<block type="final">'
+    assert_includes result, '/protocols'
+  end
+
+  def test_protocol_opt_out_empty_array_returns_base_only_when_no_skills
+    Kernai::Protocol.register(:fake) { |_b, _c| 'ok' }
+    result = Kernai::InstructionBuilder.new('Base.', skills: nil, protocols: []).build
+    assert_equal 'Base.', result
+  end
+
+  def test_chatbot_pure_case_still_returns_base_only
+    # skills: nil AND no protocols registered → purely conversational agent
+    Kernai::Protocol.reset!
+    result = Kernai::InstructionBuilder.new('Base.', skills: nil).build
+    assert_equal 'Base.', result
+  end
 end
 
 class TestAgentWithSkills < Minitest::Test

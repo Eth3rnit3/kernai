@@ -56,7 +56,7 @@ Scenarios.define(
       }
       id = params[:customer_id].to_s.gsub(/[^0-9]/, '')
       found = customers[id]
-      found ? JSON.generate(found) : JSON.generate({ error: "Customer ##{id} not found" })
+      JSON.generate(found || { error: "Customer ##{id} not found" })
     end
   end
 
@@ -81,7 +81,7 @@ Scenarios.define(
       }
       id = params[:customer_id].to_s.gsub(/[^0-9]/, '')
       found = orders[id]
-      found ? JSON.generate(found) : JSON.generate([])
+      JSON.generate(found || [])
     end
   end
 

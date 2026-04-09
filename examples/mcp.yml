@@ -1,0 +1,50 @@
+# Example Kernai MCP adapter configuration.
+#
+# Copy this file, adapt it to your environment, and load it at boot:
+#
+#     require 'kernai'
+#     require 'kernai/mcp'
+#     Kernai::MCP.load('config/mcp.yml')
+#
+# Each top-level entry under `servers:` declares one MCP connection. The
+# adapter recognizes three transports:
+#
+#   - stdio           : spawn a local process and speak MCP over its stdin/stdout
+#   - sse             : connect to an MCP Server-Sent Events endpoint
+#   - streamable_http : connect to an MCP streamable HTTP endpoint
+#
+# Environment variable references of the form ${VAR_NAME} are expanded from
+# ENV at load time, so you can carry secrets (auth tokens, API keys) through
+# your normal environment without committing them.
+
+servers:
+  # --- stdio example: the official filesystem server, scoped to /tmp --- #
+  filesystem:
+    transport: stdio
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - /tmp
+
+  # --- stdio example: the official knowledge-graph memory server --- #
+  memory:
+    transport: stdio
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-memory"
+
+  # --- SSE example with a bearer token pulled from ENV --- #
+  # github:
+  #   transport: sse
+  #   url: https://mcp.example.com/sse
+  #   headers:
+  #     Authorization: "Bearer ${GITHUB_MCP_TOKEN}"
+
+  # --- streamable HTTP example --- #
+  # internal_api:
+  #   transport: streamable_http
+  #   url: https://internal.example/mcp
+  #   headers:
+  #     X-Api-Key: "${INTERNAL_API_KEY}"

@@ -109,16 +109,16 @@ Scenarios.define(
 
     execute do |_params|
       JSON.generate([
-        { service: 'api-gateway', version: 'v2.4.1', deployed_at: '2025-04-06T14:28:00Z',
-          author: 'thomas.m', status: 'completed',
-          changelog: 'Migrate auth-service calls to TLS (port 8443). Update connection pool settings.' },
-        { service: 'user-service', version: 'v3.1.0', deployed_at: '2025-04-06T10:15:00Z',
-          author: 'sarah.k', status: 'completed',
-          changelog: 'Add user preferences endpoint. Update rate limiter config.' },
-        { service: 'billing-service', version: 'v1.8.2', deployed_at: '2025-04-05T22:30:00Z',
-          author: 'alex.p', status: 'completed',
-          changelog: 'Fix invoice rounding bug. Add retry logic for payment gateway timeouts.' }
-      ])
+                      { service: 'api-gateway', version: 'v2.4.1', deployed_at: '2025-04-06T14:28:00Z',
+                        author: 'thomas.m', status: 'completed',
+                        changelog: 'Migrate auth-service calls to TLS (port 8443). Update connection pool settings.' },
+                      { service: 'user-service', version: 'v3.1.0', deployed_at: '2025-04-06T10:15:00Z',
+                        author: 'sarah.k', status: 'completed',
+                        changelog: 'Add user preferences endpoint. Update rate limiter config.' },
+                      { service: 'billing-service', version: 'v1.8.2', deployed_at: '2025-04-05T22:30:00Z',
+                        author: 'alex.p', status: 'completed',
+                        changelog: 'Fix invoice rounding bug. Add retry logic for payment gateway timeouts.' }
+                    ])
     end
   end
 
@@ -158,21 +158,21 @@ Scenarios.define(
       service = params[:service].to_s.strip
       if service.include?('api-gateway')
         JSON.generate([
-          { timestamp: '2025-04-06T14:30:01Z', level: 'ERROR', service: 'api-gateway',
-            message: 'Failed to connect to auth-service:8443 — Connection refused' },
-          { timestamp: '2025-04-06T14:30:01Z', level: 'ERROR', service: 'api-gateway',
-            message: 'TLS handshake failed for auth-service:8443 — connection reset by peer' },
-          { timestamp: '2025-04-06T14:30:02Z', level: 'WARN', service: 'api-gateway',
-            message: 'Circuit breaker OPEN for auth-service after 10 consecutive failures' },
-          { timestamp: '2025-04-06T14:30:02Z', level: 'ERROR', service: 'api-gateway',
-            message: 'Auth validation fallback: returning 503 for request /api/v2/orders' },
-          { timestamp: '2025-04-06T14:30:05Z', level: 'ERROR', service: 'api-gateway',
-            message: 'Failed to connect to auth-service:8443 — Connection refused (retry 3/3)' },
-          { timestamp: '2025-04-06T14:31:00Z', level: 'WARN', service: 'api-gateway',
-            message: 'Health check failed: auth-service unreachable on port 8443' },
-          { timestamp: '2025-04-06T14:31:30Z', level: 'INFO', service: 'api-gateway',
-            message: 'Upstream auth-service still listening on port 8080 (legacy), but gateway configured for 8443 (TLS)' }
-        ])
+                        { timestamp: '2025-04-06T14:30:01Z', level: 'ERROR', service: 'api-gateway',
+                          message: 'Failed to connect to auth-service:8443 — Connection refused' },
+                        { timestamp: '2025-04-06T14:30:01Z', level: 'ERROR', service: 'api-gateway',
+                          message: 'TLS handshake failed for auth-service:8443 — connection reset by peer' },
+                        { timestamp: '2025-04-06T14:30:02Z', level: 'WARN', service: 'api-gateway',
+                          message: 'Circuit breaker OPEN for auth-service after 10 consecutive failures' },
+                        { timestamp: '2025-04-06T14:30:02Z', level: 'ERROR', service: 'api-gateway',
+                          message: 'Auth validation fallback: returning 503 for request /api/v2/orders' },
+                        { timestamp: '2025-04-06T14:30:05Z', level: 'ERROR', service: 'api-gateway',
+                          message: 'Failed to connect to auth-service:8443 — Connection refused (retry 3/3)' },
+                        { timestamp: '2025-04-06T14:31:00Z', level: 'WARN', service: 'api-gateway',
+                          message: 'Health check failed: auth-service unreachable on port 8443' },
+                        { timestamp: '2025-04-06T14:31:30Z', level: 'INFO', service: 'api-gateway',
+                          message: 'Upstream auth-service still listening on port 8080 (legacy), but gateway configured for 8443 (TLS)' }
+                      ])
       else
         JSON.generate([])
       end

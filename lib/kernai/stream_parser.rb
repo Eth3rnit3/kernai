@@ -11,7 +11,7 @@ module Kernai
     # escaped JSON strings (`<block type=\"...\">`) — because the LLM often
     # pastes literal examples of blocks inside plan JSON payloads.
     NESTED_OPEN_LITERAL = '<block'
-    NESTED_OPEN_PATTERN = /<block(?:\s|>)/.freeze
+    NESTED_OPEN_PATTERN = /<block(?:\s|>)/
 
     attr_reader :state
 

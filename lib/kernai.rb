@@ -8,6 +8,7 @@ require_relative 'kernai/block'
 require_relative 'kernai/parser'
 require_relative 'kernai/stream_parser'
 require_relative 'kernai/skill'
+require_relative 'kernai/protocol'
 require_relative 'kernai/llm_response'
 require_relative 'kernai/provider'
 require_relative 'kernai/instruction_builder'
@@ -41,5 +42,6 @@ module Kernai
   def self.reset!
     @config = Config.new
     Skill.reset!
+    Protocol.reset!
   end
 end
