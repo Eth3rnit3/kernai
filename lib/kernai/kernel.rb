@@ -13,15 +13,46 @@ module Kernai
   end
 
   module Kernel
+    WORKFLOW_DOCUMENTATION = <<~DOC
+      Structured workflow plans
+
+      Emit <block type="plan"> containing JSON:
+      {
+        "goal": "string",
+        "strategy": "parallel | sequential | mixed",
+        "tasks": [
+          {
+            "id": "string (required, unique)",
+            "input": "string (required, the sub-agent prompt)",
+            "parallel": true | false,
+            "depends_on": ["other_task_id", "..."]
+          }
+        ]
+      }
+
+      Rules:
+      - Each task runs as an isolated sub-agent inheriting provider, model and skills.
+      - Tasks with parallel=true run concurrently; others run sequentially.
+      - A task waits for every id listed in depends_on to finish first.
+      - Sub-agents cannot themselves create nested structured plans.
+      - Invalid plans are ignored (fail-safe).
+
+      Results are injected back as:
+      <block type="result" name="tasks">{"task_id": "result", ...}</block>
+
+      Use /tasks to inspect current state.
+    DOC
+
     class << self
-      def run(agent, input, provider: nil, history: [], recorder: nil, &callback)
+      def run(agent, input, provider: nil, history: [], recorder: nil, context: nil, &callback)
         provider = resolve_provider(agent, provider)
         raise ProviderError, 'No provider configured' unless provider
 
         rec = recorder || Kernai.config.recorder
+        ctx = context || Context.new
 
         messages = [
-          Message.new(role: :system, content: agent.resolve_instructions),
+          Message.new(role: :system, content: agent.resolve_instructions(workflow_enabled: ctx.root?)),
           *history.map { |m| Message.new(role: m[:role], content: m[:content]) },
           Message.new(role: :user, content: input)
         ]
@@ -30,7 +61,10 @@ module Kernai
 
         agent.max_steps.times do |step|
           # Hot reload: update system message each step
-          messages[0] = Message.new(role: :system, content: agent.resolve_instructions)
+          messages[0] = Message.new(
+            role: :system,
+            content: agent.resolve_instructions(workflow_enabled: ctx.root?)
+          )
 
           stream_parser = StreamParser.new
           blocks = []
@@ -56,28 +90,29 @@ module Kernai
 
           final_block = blocks.find { |b| b.type == :final }
           command_blocks = blocks.select { |b| b.type == :command }
+          plan_blocks = blocks.select { |b| b.type == :plan }
 
           rec&.record(step: step, event: :blocks_parsed, data: blocks.map(&:to_h))
 
-          # Emit non-action block events
-          blocks.each do |block|
-            case block.type
-            when :plan
-              Kernai.logger.debug(event: 'block.complete', type: :plan)
-              rec&.record(step: step, event: :plan, data: block.content)
-              callback&.call(Event.new(:plan, block.content))
-            when :json
-              Kernai.logger.debug(event: 'block.complete', type: :json)
-              rec&.record(step: step, event: :json, data: block.content)
-              callback&.call(Event.new(:json, block.content))
-            end
-          end
+          workflow_plan, consumed_plan_block = detect_workflow_plan(plan_blocks, ctx)
 
-          # Commands take priority: execute them and continue the loop
-          # even if the LLM also sent a final block (it needs to see results first)
-          if command_blocks.any?
+          emit_informational_blocks(blocks, consumed_plan_block, step, rec, callback)
+
+          if workflow_plan
+            messages << execute_workflow(
+              workflow_plan,
+              agent: agent,
+              provider: provider,
+              ctx: ctx,
+              rec: rec,
+              step: step,
+              callback: callback
+            )
+          elsif command_blocks.any?
+            # Commands take priority: execute them and continue the loop
+            # even if the LLM also sent a final block (it needs to see results first)
             command_blocks.each do |block|
-              result_msg = execute_command(block, agent, rec, step, callback)
+              result_msg = execute_command(block, agent, ctx, rec, step, callback)
               messages << result_msg
             end
           elsif final_block
@@ -124,7 +159,122 @@ module Kernai
         end
       end
 
-      def execute_command(block, agent, rec, step, callback)
+      # --- Plan / workflow handling ---
+
+      # Returns [plan, consumed_block] or [nil, nil]. Only one parse per block.
+      def detect_workflow_plan(plan_blocks, ctx)
+        return [nil, nil] unless ctx.root?
+
+        plan_blocks.each do |block|
+          plan = Plan.parse(block.content)
+          return [plan, block] if plan
+        end
+
+        [nil, nil]
+      end
+
+      def emit_informational_blocks(blocks, consumed_plan_block, step, rec, callback)
+        blocks.each do |block|
+          case block.type
+          when :plan
+            # Skip the block that was consumed as a workflow plan — the
+            # scheduler owns its lifecycle from here on.
+            next if block.equal?(consumed_plan_block)
+
+            Kernai.logger.debug(event: 'block.complete', type: :plan)
+            rec&.record(step: step, event: :plan, data: block.content)
+            callback&.call(Event.new(:plan, block.content))
+          when :json
+            Kernai.logger.debug(event: 'block.complete', type: :json)
+            rec&.record(step: step, event: :json, data: block.content)
+            callback&.call(Event.new(:json, block.content))
+          end
+        end
+      end
+
+      def execute_workflow(plan, agent:, provider:, ctx:, rec:, step:, callback:)
+        ctx.hydrate_from_plan(plan)
+
+        Kernai.logger.info(event: 'workflow.start', tasks: plan.tasks.size)
+        rec&.record(step: step, event: :workflow_start, data: plan.to_h)
+        callback&.call(Event.new(:workflow_start, plan.to_h))
+
+        runner = build_task_runner(agent, provider, rec, callback)
+        scheduler = TaskScheduler.new(ctx, runner)
+
+        begin
+          scheduler.run
+        rescue TaskScheduler::DeadlockError => e
+          Kernai.logger.error(event: 'workflow.deadlock', error: e.message)
+          rec&.record(step: step, event: :workflow_error, data: { error: e.message })
+          return Message.new(
+            role: :user,
+            content: "<block type=\"error\" name=\"tasks\">#{e.message}</block>"
+          )
+        end
+
+        Kernai.logger.info(event: 'workflow.complete', tasks: ctx.task_results.size)
+        rec&.record(step: step, event: :workflow_complete, data: ctx.task_results)
+        callback&.call(Event.new(:workflow_complete, ctx.task_results))
+
+        Message.new(
+          role: :user,
+          content: "<block type=\"result\" name=\"tasks\">#{JSON.generate(ctx.task_results)}</block>"
+        )
+      end
+
+      def build_task_runner(agent, provider, rec, callback)
+        lambda do |task, sched_context|
+          sub_agent = build_sub_agent(agent)
+          sub_context = sched_context.spawn_child
+          sub_input = build_task_input(task, sched_context)
+
+          callback&.call(Event.new(:task_start, { id: task.id, input: task.input }))
+
+          begin
+            result = Kernel.run(
+              sub_agent,
+              sub_input,
+              provider: provider,
+              context: sub_context,
+              recorder: rec,
+              &callback
+            )
+            callback&.call(Event.new(:task_complete, { id: task.id, result: result }))
+            result
+          rescue StandardError => e
+            error_payload = "error: #{e.message}"
+            callback&.call(Event.new(:task_error, { id: task.id, error: e.message }))
+            error_payload
+          end
+        end
+      end
+
+      def build_sub_agent(parent)
+        sub_max = [parent.max_steps / 2, 3].max
+        Agent.new(
+          instructions: parent.instructions,
+          provider: parent.provider,
+          model: parent.model,
+          max_steps: sub_max,
+          skills: parent.skills
+        )
+      end
+
+      def build_task_input(task, ctx)
+        return task.input if task.depends_on.empty?
+
+        dep_blocks = task.depends_on.map do |dep_id|
+          value = ctx.task_results[dep_id.to_s]
+          "<block type=\"result\" name=\"#{dep_id}\">#{value}</block>"
+        end.join("\n")
+
+        "#{dep_blocks}\n\n#{task.input}"
+      end
+
+      # --- Command execution ---
+
+      def execute_command(block, agent, ctx, rec, step, callback)
         command_name = block.name&.strip
 
         unless command_name
@@ -137,23 +287,20 @@ module Kernai
         end
 
         # Built-in commands (prefixed with /)
-        return execute_builtin(command_name, agent, rec, step, callback) if command_name.start_with?('/')
+        return execute_builtin(command_name, agent, ctx, rec, step, callback) if command_name.start_with?('/')
 
         execute_skill(command_name.to_sym, block.content, rec, step, callback)
       end
 
-      def execute_builtin(command_name, agent, rec, step, callback)
+      def execute_builtin(command_name, agent, ctx, rec, step, callback)
         case command_name
         when '/skills'
-          listing = Skill.listing(agent.skills)
-          Kernai.logger.info(event: 'builtin.execute', command: '/skills')
-          rec&.record(step: step, event: :builtin_result, data: { command: '/skills', result: listing })
-          callback&.call(Event.new(:builtin_result, { command: '/skills', result: listing }))
-
-          Message.new(
-            role: :user,
-            content: "<block type=\"result\" name=\"/skills\">#{listing}</block>"
-          )
+          builtin_result(command_name, Skill.listing(agent.skills), rec, step, callback)
+        when '/workflow'
+          builtin_result(command_name, WORKFLOW_DOCUMENTATION, rec, step, callback)
+        when '/tasks'
+          payload = JSON.generate(tasks_snapshot(ctx))
+          builtin_result(command_name, payload, rec, step, callback)
         else
           Kernai.logger.error(event: 'builtin.execute', command: command_name, error: 'unknown')
           rec&.record(step: step, event: :builtin_error, data: { command: command_name, error: 'unknown' })
@@ -163,6 +310,27 @@ module Kernai
             content: "<block type=\"error\" name=\"#{command_name}\">Unknown command '#{command_name}'</block>"
           )
         end
+      end
+
+      def builtin_result(command_name, payload, rec, step, callback)
+        Kernai.logger.info(event: 'builtin.execute', command: command_name)
+        rec&.record(step: step, event: :builtin_result, data: { command: command_name, result: payload })
+        callback&.call(Event.new(:builtin_result, { command: command_name, result: payload }))
+
+        Message.new(
+          role: :user,
+          content: "<block type=\"result\" name=\"#{command_name}\">#{payload}</block>"
+        )
+      end
+
+      def tasks_snapshot(ctx)
+        {
+          depth: ctx.depth,
+          goal: ctx.plan&.goal,
+          strategy: ctx.plan&.strategy,
+          tasks: ctx.tasks.map(&:to_h),
+          task_results: ctx.task_results
+        }
       end
 
       def execute_skill(skill_name, content, rec, step, callback)

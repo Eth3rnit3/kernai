@@ -13,8 +13,12 @@ module Kernai
       @skills = skills
     end
 
-    def resolve_instructions
-      InstructionBuilder.new(@instructions, skills: @skills).build
+    def resolve_instructions(workflow_enabled: true)
+      InstructionBuilder.new(
+        @instructions,
+        skills: @skills,
+        workflow_enabled: workflow_enabled
+      ).build
     end
 
     def update_instructions(text)

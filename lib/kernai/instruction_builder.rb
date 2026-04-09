@@ -2,9 +2,10 @@
 
 module Kernai
   class InstructionBuilder
-    def initialize(base_instructions, skills: nil)
+    def initialize(base_instructions, skills: nil, workflow_enabled: true)
       @base_instructions = base_instructions
       @skills = skills
+      @workflow_enabled = workflow_enabled
     end
 
     def build
@@ -41,7 +42,7 @@ module Kernai
         Built-in commands:
         - /skills: list all available skills and their usage
           <block type="command" name="/skills"></block>
-
+        #{workflow_hint}
         Workflow:
         1. Start by listing available skills with /skills
         2. Use <block type="command"> to call skills when you need data or actions
@@ -49,6 +50,22 @@ module Kernai
         4. Analyze results and call more skills if needed
         5. When done, provide your final answer in <block type="final">
       PROTOCOL
+    end
+
+    def workflow_hint
+      return '' unless @workflow_enabled
+
+      <<~HINT.chomp
+        - /workflow: show the structured plan format documentation
+          <block type="command" name="/workflow"></block>
+        - /tasks: show the current task execution state
+          <block type="command" name="/tasks"></block>
+
+        Structured workflows (optional): you may emit a <block type="plan"> containing JSON
+        {"goal":"...","strategy":"parallel|sequential|mixed","tasks":[{"id":"t1","input":"...","parallel":true,"depends_on":[]}]}
+        Each task runs as an isolated sub-agent. Results come back in <block type="result" name="tasks">.
+        Call /workflow for details.
+      HINT
     end
   end
 end

@@ -8,15 +8,17 @@ module Kernai
 
     def initialize
       @entries = []
+      @mutex = Mutex.new
     end
 
     def record(step:, event:, data:)
-      @entries << {
+      entry = {
         step: step,
         event: event.to_sym,
         data: data,
         timestamp: Time.now.iso8601
       }
+      @mutex.synchronize { @entries << entry }
     end
 
     def to_a
