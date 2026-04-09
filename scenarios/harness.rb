@@ -111,6 +111,8 @@ module Scenarios
 
       header(provider_name, model)
 
+      @failure = nil
+
       begin
         @result = Kernai::Kernel.run(agent, @input, recorder: @recorder) do |event|
           @events << event
@@ -118,9 +120,13 @@ module Scenarios
         end
       rescue Kernai::MaxStepsReachedError => e
         @result = nil
+        @failure = { type: 'max_steps_reached', message: e.message }
+        @recorder.record(step: -1, event: :error, data: @failure)
         print_error("MaxStepsReached: #{e.message}")
       rescue Kernai::ProviderError => e
         @result = nil
+        @failure = { type: 'provider_error', message: e.message }
+        @recorder.record(step: -1, event: :error, data: @failure)
         print_error("ProviderError: #{e.message}")
       end
 
@@ -245,7 +251,8 @@ module Scenarios
       slug = model.gsub(/[^a-zA-Z0-9._-]/, '_')
       timestamp = Time.now.strftime('%Y%m%d_%H%M%S')
       filename = "#{@name}_#{slug}_#{timestamp}.json"
-      path = File.join(__dir__, 'logs', filename)
+      logs_dir = File.join(__dir__, 'logs')
+      path = File.join(logs_dir, filename)
 
       log = {
         scenario: @name,
@@ -253,15 +260,61 @@ module Scenarios
         provider: provider_name,
         model: model,
         input: @input,
+        max_steps: @max_steps,
+        skills: @skills.map { |s| s[:name].to_s },
         result: @result,
-        steps: @recorder.steps.size,
+        ok: !@result.nil?,
+        failure: @failure,
+        steps: root_steps_count,
+        started_at: @recorder.entries.first&.dig(:timestamp),
+        finished_at: @recorder.entries.last&.dig(:timestamp),
         recording: @recorder.to_a
       }
 
-      FileUtils.mkdir_p(File.dirname(path))
+      FileUtils.mkdir_p(logs_dir)
       File.write(path, JSON.pretty_generate(log))
+      update_manifest(logs_dir, filename, log)
       puts "  \e[2mLog saved: #{path}\e[0m"
       puts
+    end
+
+    # Root-only step count — recorder entries from sub-agents reset their
+    # own `step` counters, so the overall "steps used" number should only
+    # count depth-0 entries to stay comparable across runs.
+    def root_steps_count
+      root_entries = @recorder.entries.select { |e| e[:depth].to_i.zero? }
+      root_entries.map { |e| e[:step] }.reject { |s| s.nil? || s.negative? }.uniq.size
+    end
+
+    # Append-only index of every run in `scenarios/logs/manifest.json`.
+    # The observer UI can read this single file instead of globbing and
+    # parsing every log just to list available runs.
+    def update_manifest(logs_dir, filename, log)
+      manifest_path = File.join(logs_dir, 'manifest.json')
+      manifest = File.exist?(manifest_path) ? safe_load_manifest(manifest_path) : []
+
+      entry = {
+        file: filename,
+        scenario: log[:scenario],
+        description: log[:description],
+        provider: log[:provider],
+        model: log[:model],
+        ok: log[:ok],
+        steps: log[:steps],
+        max_steps: log[:max_steps],
+        started_at: log[:started_at],
+        finished_at: log[:finished_at]
+      }
+
+      manifest << entry
+      File.write(manifest_path, JSON.pretty_generate(manifest))
+    end
+
+    def safe_load_manifest(path)
+      parsed = JSON.parse(File.read(path))
+      parsed.is_a?(Array) ? parsed : []
+    rescue JSON::ParserError
+      []
     end
 
     # --- Helpers ---
