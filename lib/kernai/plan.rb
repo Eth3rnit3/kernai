@@ -13,43 +13,73 @@ module Kernai
     # serial execution) as a global hint to the scheduler.
     DEFAULT_STRATEGY = 'mixed'
 
+    # Symbols returned by Plan.validate when a raw payload is rejected.
+    REJECTION_REASONS = %i[
+      blank
+      invalid_json
+      not_a_hash
+      no_tasks
+      empty_tasks
+      all_tasks_invalid
+      cyclic
+    ].freeze
+
+    # Small value object returned by Plan.validate. `plan` is set only on
+    # success; `reason` is set only on failure.
+    Result = Struct.new(:plan, :reason, keyword_init: true) do
+      def ok?
+        !plan.nil?
+      end
+    end
+
     attr_reader :goal, :strategy, :tasks
 
     class << self
-      # Parse a raw plan representation (JSON string or Hash) into a Plan.
-      # Returns nil for anything that fails validation (fail-safe).
+      # Convenience wrapper — returns the Plan or nil. Use `validate` when
+      # the caller also needs the rejection reason.
       def parse(raw)
-        data = coerce(raw)
-        return nil unless data.is_a?(Hash)
+        validate(raw).plan
+      end
+
+      # Full parsing pipeline with structured failure reasons. Always
+      # returns a Result; the caller decides whether to surface `reason`.
+      def validate(raw)
+        data, reason = coerce(raw)
+        return Result.new(reason: reason) if reason
 
         tasks_data = data['tasks']
-        return nil unless tasks_data.is_a?(Array) && tasks_data.any?
+        return Result.new(reason: :no_tasks)    unless tasks_data.is_a?(Array)
+        return Result.new(reason: :empty_tasks) if tasks_data.empty?
 
         tasks = tasks_data.filter_map { |t| Task.from_hash(t) }
-        return nil if tasks.empty?
+        return Result.new(reason: :all_tasks_invalid) if tasks.empty?
 
         prune_invalid_dependencies(tasks)
-        return nil if cyclic?(tasks)
+        return Result.new(reason: :cyclic) if cyclic?(tasks)
 
-        new(
+        plan = new(
           goal: data['goal'].to_s,
           strategy: VALID_STRATEGIES.include?(data['strategy']) ? data['strategy'] : DEFAULT_STRATEGY,
           tasks: tasks
         )
+        Result.new(plan: plan)
       end
 
       private
 
+      # Normalizes any accepted input shape into a Hash. Returns
+      # [hash, nil] on success or [nil, reason] on failure so `validate`
+      # can forward the reason unchanged.
       def coerce(raw)
-        return raw if raw.is_a?(Hash)
-        return nil unless raw.is_a?(String)
+        return [raw, nil] if raw.is_a?(Hash)
+        return [nil, :not_a_hash] unless raw.is_a?(String)
 
         text = raw.strip
-        return nil if text.empty?
+        return [nil, :blank] if text.empty?
 
-        JSON.parse(text)
+        [JSON.parse(text), nil]
       rescue JSON::ParserError
-        nil
+        [nil, :invalid_json]
       end
 
       def prune_invalid_dependencies(tasks)

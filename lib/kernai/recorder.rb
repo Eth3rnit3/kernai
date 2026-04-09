@@ -1,8 +1,12 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'time'
 
 module Kernai
+  # Append-only log of every kernel event. Entries are always stamped with
+  # their execution scope (`depth` + `task_id`) so consumers can rebuild the
+  # parent/sub-agent tree from the flat stream.
   class Recorder
     attr_reader :entries
 
@@ -11,12 +15,15 @@ module Kernai
       @mutex = Mutex.new
     end
 
-    def record(step:, event:, data:)
+    def record(step:, event:, data:, scope: nil)
+      scope ||= {}
       entry = {
         step: step,
+        depth: scope[:depth] || 0,
+        task_id: scope[:task_id],
         event: event.to_sym,
         data: data,
-        timestamp: Time.now.iso8601
+        timestamp: Time.now.iso8601(3)
       }
       @mutex.synchronize { @entries << entry }
     end

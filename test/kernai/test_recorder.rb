@@ -73,11 +73,25 @@ class TestRecorder < Minitest::Test
 
   def test_for_event_filters
     @recorder.record(step: 0, event: :messages_sent, data: [])
-    @recorder.record(step: 0, event: :raw_response, data: 'hi')
+    @recorder.record(step: 0, event: :llm_response, data: { content: 'hi' })
     @recorder.record(step: 1, event: :messages_sent, data: [])
     entries = @recorder.for_event(:messages_sent)
     assert_equal 2, entries.size
     assert(entries.all? { |e| e[:event] == :messages_sent })
+  end
+
+  def test_record_stamps_scope_defaults
+    @recorder.record(step: 0, event: :test, data: 'x')
+    entry = @recorder.entries.first
+    assert_equal 0, entry[:depth]
+    assert_nil entry[:task_id]
+  end
+
+  def test_record_stamps_scope_from_context
+    @recorder.record(step: 0, event: :test, data: 'x', scope: { depth: 2, task_id: 't_root' })
+    entry = @recorder.entries.first
+    assert_equal 2, entry[:depth]
+    assert_equal 't_root', entry[:task_id]
   end
 
   def test_for_event_accepts_string
@@ -93,10 +107,10 @@ class TestRecorder < Minitest::Test
 
     assert_equal [0], @recorder.steps
 
-    # Should have: messages_sent, raw_response, blocks_parsed, result
+    # Should have: messages_sent, llm_response, blocks_parsed, result
     events = @recorder.entries.map { |e| e[:event] }
     assert_includes events, :messages_sent
-    assert_includes events, :raw_response
+    assert_includes events, :llm_response
     assert_includes events, :blocks_parsed
     assert_includes events, :result
   end
@@ -113,12 +127,20 @@ class TestRecorder < Minitest::Test
     assert_equal 'Hello there', messages[1][:content]
   end
 
-  def test_records_raw_response
-    @provider.respond_with('<block type="final">The answer</block>')
+  def test_records_llm_response_with_content_and_stats
+    @provider
+      .respond_with('<block type="final">The answer</block>')
+      .with_token_counter { |_m, _c| { prompt_tokens: 10, completion_tokens: 5 } }
+
     Kernai::Kernel.run(@agent, 'Hi', recorder: @recorder)
 
-    raw = @recorder.for_event(:raw_response).first
-    assert_includes raw[:data], 'The answer'
+    entry = @recorder.for_event(:llm_response).first
+    refute_nil entry
+    assert_includes entry[:data][:content], 'The answer'
+    assert_equal 10, entry[:data][:prompt_tokens]
+    assert_equal 5, entry[:data][:completion_tokens]
+    assert_equal 15, entry[:data][:total_tokens]
+    assert_operator entry[:data][:latency_ms], :>=, 0
   end
 
   def test_records_blocks_parsed
@@ -215,16 +237,16 @@ class TestRecorder < Minitest::Test
 
     assert_equal [0, 1], @recorder.steps
 
-    # Step 0: messages_sent, raw_response, blocks_parsed, skill_execute, skill_result
+    # Step 0: messages_sent, llm_response, blocks_parsed, skill_execute, skill_result
     step0 = @recorder.for_step(0)
     step0_events = step0.map { |e| e[:event] }
     assert_includes step0_events, :messages_sent
-    assert_includes step0_events, :raw_response
+    assert_includes step0_events, :llm_response
     assert_includes step0_events, :blocks_parsed
     assert_includes step0_events, :skill_execute
     assert_includes step0_events, :skill_result
 
-    # Step 1: messages_sent (now includes skill result), raw_response, blocks_parsed, result
+    # Step 1: messages_sent (now includes skill result), llm_response, blocks_parsed, result
     step1 = @recorder.for_step(1)
     step1_events = step1.map { |e| e[:event] }
     assert_includes step1_events, :messages_sent
@@ -299,7 +321,8 @@ class TestRecorder < Minitest::Test
     parsed = JSON.parse(json)
     assert parsed.is_a?(Array)
     assert parsed.size.positive?
-    assert(parsed.all? { |e| e.key?('step') && e.key?('event') && e.key?('data') && e.key?('timestamp') })
+    required_keys = %w[step depth task_id event data timestamp]
+    assert(parsed.all? { |e| required_keys.all? { |k| e.key?(k) } })
   end
 
   # --- Plan and JSON block recording ---

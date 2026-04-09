@@ -6,18 +6,26 @@ module Kernai
   # receive a fresh child context so their state never pollutes the parent.
   class Context
     attr_reader :depth
-    attr_accessor :plan, :tasks, :task_results
+    attr_accessor :plan, :tasks, :task_results, :current_task_id
 
-    def initialize(plan: nil, tasks: nil, task_results: nil, depth: 0)
+    def initialize(plan: nil, tasks: nil, task_results: nil, depth: 0, current_task_id: nil)
       @plan = plan
       @tasks = tasks || []
       @task_results = task_results || {}
       @depth = depth
+      @current_task_id = current_task_id
       @mutex = Mutex.new
     end
 
     def root?
       @depth.zero?
+    end
+
+    # Snapshot of the scope to stamp on every recorder entry. Sub-agents
+    # inherit depth + the task they were spawned for so the flat recording
+    # stream can be grouped into a tree by consumers.
+    def recorder_scope
+      { depth: @depth, task_id: @current_task_id }
     end
 
     # Thread-safe write — used by the TaskScheduler running parallel tasks.
@@ -52,7 +60,8 @@ module Kernai
         plan: @plan&.to_h,
         tasks: @tasks.map(&:to_h),
         task_results: @task_results,
-        depth: @depth
+        depth: @depth,
+        current_task_id: @current_task_id
       }
     end
   end
