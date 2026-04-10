@@ -21,7 +21,7 @@ class TestOpenaiProvider < Minitest::Test
           { role: :system, content: BLOCK_INSTRUCTIONS },
           { role: :user, content: 'What is 2+2?' }
         ],
-        model: 'gpt-4.1'
+        model: Kernai::Model.new(id: 'gpt-4.1')
       )
 
       assert_kind_of Kernai::LlmResponse, result
@@ -40,7 +40,7 @@ class TestOpenaiProvider < Minitest::Test
           { role: :system, content: BLOCK_INSTRUCTIONS },
           { role: :user, content: 'What is 2+2?' }
         ],
-        model: 'gpt-4.1'
+        model: Kernai::Model.new(id: 'gpt-4.1')
       )
 
       parsed = Kernai::Parser.parse(response.content)
@@ -60,7 +60,7 @@ class TestOpenaiProvider < Minitest::Test
           { role: :system, content: BLOCK_INSTRUCTIONS },
           { role: :user, content: 'What is 2+2?' }
         ],
-        model: 'gpt-4.1'
+        model: Kernai::Model.new(id: 'gpt-4.1')
       ) { |chunk| chunks << chunk }
 
       assert chunks.size > 1, 'Should receive multiple chunks'
@@ -81,7 +81,7 @@ class TestOpenaiProvider < Minitest::Test
           { role: :system, content: BLOCK_INSTRUCTIONS },
           { role: :user, content: 'What is 2+2?' }
         ],
-        model: 'gpt-4.1'
+        model: Kernai::Model.new(id: 'gpt-4.1')
       ) { |chunk| parser.push(chunk) }
 
       parser.flush
@@ -99,7 +99,7 @@ class TestOpenaiProvider < Minitest::Test
       agent = Kernai::Agent.new(
         instructions: BLOCK_INSTRUCTIONS,
         provider: @provider,
-        model: 'gpt-4.1'
+        model: Kernai::Model.new(id: 'gpt-4.1')
       )
 
       result = Kernai::Kernel.run(agent, 'What is 2+2?')

@@ -41,7 +41,7 @@ module Kernai
         content = resolve_response(messages, model)
         @call_count += 1
 
-        content.each_char { |c| block.call(c) } if block
+        content.to_s.each_char { |c| block.call(c) } if block
 
         latency_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
         tokens = @token_provider&.call(messages, content) || {}

@@ -23,7 +23,7 @@ class TestOllamaScenarios < Minitest::Test
       agent = Kernai::Agent.new(
         instructions: INVENTORY_INSTRUCTIONS,
         provider: @provider,
-        model: 'gemma3:27b',
+        model: Kernai::Model.new(id: 'gemma3:27b'),
         max_steps: 5
       )
 
@@ -53,7 +53,7 @@ class TestOllamaScenarios < Minitest::Test
       agent = Kernai::Agent.new(
         instructions: WEATHER_ADVISOR_INSTRUCTIONS,
         provider: @provider,
-        model: 'gemma3:27b',
+        model: Kernai::Model.new(id: 'gemma3:27b'),
         max_steps: 5
       )
 
@@ -80,7 +80,7 @@ class TestOllamaScenarios < Minitest::Test
       agent = Kernai::Agent.new(
         instructions: DATA_ANALYST_INSTRUCTIONS,
         provider: @provider,
-        model: 'gemma3:27b',
+        model: Kernai::Model.new(id: 'gemma3:27b'),
         max_steps: 10
       )
 

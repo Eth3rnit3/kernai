@@ -15,7 +15,7 @@ class TestKernelProtocol < Minitest::Test
     @agent = Kernai::Agent.new(
       instructions: 'You are helpful.',
       provider: @provider,
-      model: 'test-model',
+      model: Kernai::Model.new(id: 'test-model'),
       max_steps: 10
     )
     @recorder = Kernai::Recorder.new
@@ -43,8 +43,8 @@ class TestKernelProtocol < Minitest::Test
     second_call = @provider.calls[1]
     injected = second_call[:messages].last
     assert_equal :user, injected[:role]
-    assert_includes injected[:content], '<block type="result" name="fake">'
-    assert_includes injected[:content], 'echo: ping'
+    assert_includes injected[:content].join, '<block type="result" name="fake">'
+    assert_includes injected[:content].join, 'echo: ping'
   end
 
   def test_unregistered_block_type_is_ignored
@@ -121,8 +121,8 @@ class TestKernelProtocol < Minitest::Test
     # The injected message should be an error block, not a result block
     second_call = @provider.calls[1]
     injected = second_call[:messages].last
-    assert_includes injected[:content], '<block type="error" name="fake">'
-    assert_includes injected[:content], 'boom'
+    assert_includes injected[:content].join, '<block type="error" name="fake">'
+    assert_includes injected[:content].join, 'boom'
   end
 
   def test_handler_raise_records_protocol_error_with_duration
@@ -176,7 +176,7 @@ class TestKernelProtocol < Minitest::Test
 
     injected = @provider.calls[1][:messages].last
     assert_equal :user, injected[:role]
-    assert_includes injected[:content], 'custom wrapping'
+    assert_includes injected[:content].join, 'custom wrapping'
   end
 
   # --- Agent whitelist ---
@@ -225,8 +225,8 @@ class TestKernelProtocol < Minitest::Test
     assert_equal 'not allowed', err[:data][:error]
 
     injected = @provider.calls[1][:messages].last
-    assert_includes injected[:content], '<block type="error" name="fake">'
-    assert_includes injected[:content], 'not allowed'
+    assert_includes injected[:content].join, '<block type="error" name="fake">'
+    assert_includes injected[:content].join, 'not allowed'
   end
 
   def test_whitelist_empty_blocks_everything
@@ -261,7 +261,7 @@ class TestKernelProtocol < Minitest::Test
 
     run_kernel
 
-    injected_contents = @provider.calls[1][:messages].select { |m| m[:role] == :user }.map { |m| m[:content] }
+    injected_contents = @provider.calls[1][:messages].select { |m| m[:role] == :user }.map { |m| m[:content].join }
     # First user message is the initial prompt; following are the command
     # result then the protocol result in insertion order.
     # We assert the order by finding their indexes.
@@ -288,7 +288,7 @@ class TestKernelProtocol < Minitest::Test
 
     run_kernel
 
-    contents = @provider.calls[1][:messages].map { |m| m[:content] }
+    contents = @provider.calls[1][:messages].map { |m| m[:content].join }
     idx_proto = contents.index { |c| c.include?('proto:first') }
     idx_skill = contents.index { |c| c.include?('skill:second') }
     assert idx_proto

@@ -2,8 +2,9 @@
 
 module Kernai
   class InstructionBuilder
-    def initialize(base_instructions, skills: nil, protocols: nil, workflow_enabled: true)
+    def initialize(base_instructions, model: Models::TEXT_ONLY, skills: nil, protocols: nil, workflow_enabled: true)
       @base_instructions = base_instructions
+      @model = model
       @skills = skills
       @protocols = protocols
       @workflow_enabled = workflow_enabled
@@ -14,7 +15,7 @@ module Kernai
 
       return base unless actionable?
 
-      [base, block_protocol].join("\n\n")
+      [base, block_protocol, *capability_sections].join("\n\n")
     end
 
     private
@@ -36,6 +37,48 @@ module Kernai
       else
         @base_instructions.to_s
       end
+    end
+
+    # Capability-driven appendices. Each section returns either a
+    # non-empty String (appended to the prompt) or an empty String
+    # (filtered out). The set of sections is fixed — enabling or
+    # disabling one is a property of the model's capabilities, not a
+    # conditional in the builder.
+    def capability_sections
+      [media_input_section, media_output_section].reject(&:empty?)
+    end
+
+    def media_input_section
+      inputs = @model.supported_media_inputs
+      return '' if inputs.empty?
+
+      kinds = inputs.map(&:to_s).join(', ')
+      <<~SECTION.strip
+        ## MULTIMODAL INPUTS
+
+        Your model can perceive #{kinds} content. When the user provides
+        such a part in a message, it is available to you natively — no
+        special block is needed to "load" it. Reason about it directly
+        and reference it in your answer.
+      SECTION
+    end
+
+    def media_output_section
+      return '' unless @model.supports?(:image_gen) || @model.supports?(:audio_out)
+
+      outs = []
+      outs << 'images' if @model.supports?(:image_gen)
+      outs << 'audio'  if @model.supports?(:audio_out)
+
+      <<~SECTION.strip
+        ## MULTIMODAL OUTPUTS
+
+        Your model can emit #{outs.join(' and ')} alongside text. Prefer
+        calling a skill that `produces` the relevant media kind: the
+        runtime will capture the returned Media and inject it back into
+        the conversation as a <block type="result"> referencing the
+        media id. Do not attempt to emit raw binary in a text block.
+      SECTION
     end
 
     def block_protocol

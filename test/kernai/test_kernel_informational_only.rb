@@ -16,7 +16,7 @@ class TestKernelInformationalOnly < Minitest::Test
     @agent = Kernai::Agent.new(
       instructions: 'You are helpful.',
       provider: @provider,
-      model: 'test-model',
+      model: Kernai::Model.new(id: 'test-model'),
       max_steps: 6
     )
     @recorder = Kernai::Recorder.new
@@ -52,11 +52,11 @@ class TestKernelInformationalOnly < Minitest::Test
     # as a user message between the plan and the final.
     second_call_messages = @provider.calls[1][:messages]
     error_msg = second_call_messages.reverse.find do |m|
-      m[:role] == :user && m[:content].include?('<block type="error">')
+      m[:role] == :user && m[:content].join.include?('<block type="error">')
     end
     assert error_msg, 'expected an injected corrective user error block'
-    assert_includes error_msg[:content], 'informational blocks'
-    assert_includes error_msg[:content], 'actionable'
+    assert_includes error_msg[:content].join, 'informational blocks'
+    assert_includes error_msg[:content].join, 'actionable'
   end
 
   def test_plan_only_turn_emits_informational_only_event
@@ -110,7 +110,7 @@ class TestKernelInformationalOnly < Minitest::Test
     @agent = Kernai::Agent.new(
       instructions: 'You are helpful.',
       provider: @provider,
-      model: 'test-model',
+      model: Kernai::Model.new(id: 'test-model'),
       max_steps: 3
     )
     @provider.respond_with('<block type="plan">still thinking...</block>')

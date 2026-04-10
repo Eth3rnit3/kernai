@@ -12,7 +12,7 @@ class TestKernel < Minitest::Test
     @agent = Kernai::Agent.new(
       instructions: 'You are a helpful assistant. Use XML blocks.',
       provider: @provider,
-      model: 'test-model',
+      model: Kernai::Model.new(id: 'test-model'),
       max_steps: 10
     )
   end
@@ -71,9 +71,9 @@ class TestKernel < Minitest::Test
     # Second call should include the result message
     second_call = @provider.calls[1]
     messages = second_call[:messages]
-    result_msg = messages.find { |m| m[:content].include?('result') && m[:content].include?('lookup') }
+    result_msg = messages.find { |m| m[:content].join.include?('result') && m[:content].join.include?('lookup') }
     assert result_msg, 'Result block should be injected'
-    assert_includes result_msg[:content], 'user_123'
+    assert_includes result_msg[:content].join, 'user_123'
   end
 
   def test_command_with_json_params
@@ -109,7 +109,7 @@ class TestKernel < Minitest::Test
     # Error should have been injected
     second_call = @provider.calls[1]
     error_msg = second_call[:messages].find do |m|
-      m[:content].include?('error') && m[:content].include?('unknown_skill')
+      m[:content].join.include?('error') && m[:content].join.include?('unknown_skill')
     end
     assert error_msg, 'Error block should be injected for missing skill'
   end
@@ -130,7 +130,9 @@ class TestKernel < Minitest::Test
     assert_equal 'Handled', result
 
     second_call = @provider.calls[1]
-    error_msg = second_call[:messages].find { |m| m[:content].include?('error') && m[:content].include?('not allowed') }
+    error_msg = second_call[:messages].find do |m|
+      m[:content].join.include?('error') && m[:content].join.include?('not allowed')
+    end
     assert error_msg, 'Error block should be injected for disallowed skill'
   end
 
@@ -150,7 +152,7 @@ class TestKernel < Minitest::Test
 
     second_call = @provider.calls[1]
     error_msg = second_call[:messages].find do |m|
-      m[:content].include?('error') && m[:content].include?('Something went wrong')
+      m[:content].join.include?('error') && m[:content].join.include?('Something went wrong')
     end
     assert error_msg, 'Error block should be injected for skill failure'
   end
@@ -171,7 +173,7 @@ class TestKernel < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: 'test',
       provider: @provider,
-      model: 'test',
+      model: Kernai::Model.new(id: 'test'),
       max_steps: 2
     )
 
@@ -200,7 +202,7 @@ class TestKernel < Minitest::Test
   end
 
   def test_default_provider_fallback
-    agent = Kernai::Agent.new(instructions: 'test', model: 'test', max_steps: 5)
+    agent = Kernai::Agent.new(instructions: 'test', model: Kernai::Model.new(id: 'test'), max_steps: 5)
     default = Kernai::Mock::Provider.new
     default.respond_with('<block type="final">From default</block>')
     Kernai.config.default_provider = default
@@ -210,7 +212,7 @@ class TestKernel < Minitest::Test
   end
 
   def test_no_provider_raises_error
-    agent = Kernai::Agent.new(instructions: 'test', model: 'test')
+    agent = Kernai::Agent.new(instructions: 'test', model: Kernai::Model.new(id: 'test'))
     assert_raises(Kernai::ProviderError) do
       Kernai::Kernel.run(agent, 'Hi')
     end
@@ -290,7 +292,7 @@ class TestKernel < Minitest::Test
 
     messages = @provider.last_call[:messages]
     assert_equal :system, messages[0][:role]
-    assert_equal 'You are a helpful assistant. Use XML blocks.', messages[0][:content]
+    assert_equal ['You are a helpful assistant. Use XML blocks.'], messages[0][:content]
   end
 
   def test_user_input_as_second_message
@@ -299,13 +301,13 @@ class TestKernel < Minitest::Test
 
     messages = @provider.last_call[:messages]
     assert_equal :user, messages[1][:role]
-    assert_equal 'Hello there', messages[1][:content]
+    assert_equal ['Hello there'], messages[1][:content]
   end
 
   def test_model_passed_to_provider
     @provider.respond_with('<block type="final">OK</block>')
     Kernai::Kernel.run(@agent, 'Hi')
-    assert_equal 'test-model', @provider.last_call[:model]
+    assert_equal 'test-model', @provider.last_call[:model].id
   end
 
   # --- Hot reload instructions ---
@@ -320,7 +322,7 @@ class TestKernel < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: instructions,
       provider: @provider,
-      model: 'test',
+      model: Kernai::Model.new(id: 'test'),
       max_steps: 5
     )
 
@@ -337,8 +339,8 @@ class TestKernel < Minitest::Test
     Kernai::Kernel.run(agent, 'Go')
 
     # System message should be updated on each step
-    first_system = @provider.calls[0][:messages][0][:content]
-    second_system = @provider.calls[1][:messages][0][:content]
+    first_system = @provider.calls[0][:messages][0][:content].join
+    second_system = @provider.calls[1][:messages][0][:content].join
     assert_includes first_system, 'v'
     assert_includes second_system, 'v'
     refute_equal first_system, second_system
@@ -423,11 +425,11 @@ class TestKernel < Minitest::Test
     assert_equal 4, messages.size
     assert_equal :system,    messages[0][:role]
     assert_equal :user,      messages[1][:role]
-    assert_equal 'What is 2+2?', messages[1][:content]
+    assert_equal ['What is 2+2?'], messages[1][:content]
     assert_equal :assistant, messages[2][:role]
-    assert_equal '4',        messages[2][:content]
-    assert_equal :user,      messages[3][:role]
-    assert_equal 'And 3+3?', messages[3][:content]
+    assert_equal ['4'], messages[2][:content]
+    assert_equal :user, messages[3][:role]
+    assert_equal ['And 3+3?'], messages[3][:content]
   end
 
   def test_history_preserves_multiple_turns
@@ -444,11 +446,11 @@ class TestKernel < Minitest::Test
     messages = @provider.last_call[:messages]
     # system + 4 history + current user = 6
     assert_equal 6, messages.size
-    assert_equal 'Turn 1',  messages[1][:content]
-    assert_equal 'Reply 1', messages[2][:content]
-    assert_equal 'Turn 2',  messages[3][:content]
-    assert_equal 'Reply 2', messages[4][:content]
-    assert_equal 'Turn 3',  messages[5][:content]
+    assert_equal ['Turn 1'],  messages[1][:content]
+    assert_equal ['Reply 1'], messages[2][:content]
+    assert_equal ['Turn 2'],  messages[3][:content]
+    assert_equal ['Reply 2'], messages[4][:content]
+    assert_equal ['Turn 3'],  messages[5][:content]
   end
 
   def test_history_persists_across_tool_steps
@@ -475,11 +477,11 @@ class TestKernel < Minitest::Test
 
     # First call: system + history(2) + user = 4
     assert_equal 4, first_messages.size
-    assert_equal 'My name is Alice', first_messages[1][:content]
+    assert_equal ['My name is Alice'], first_messages[1][:content]
 
     # Second call: system + history(2) + user + assistant + skill_result = 6
     assert_equal 6, second_messages.size
-    assert_equal 'My name is Alice', second_messages[1][:content]
+    assert_equal ['My name is Alice'], second_messages[1][:content]
   end
 
   def test_history_with_hot_reload_instructions
@@ -492,7 +494,7 @@ class TestKernel < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: instructions,
       provider: @provider,
-      model: 'test',
+      model: Kernai::Model.new(id: 'test'),
       max_steps: 5
     )
 
@@ -517,11 +519,11 @@ class TestKernel < Minitest::Test
     first_messages = @provider.calls[0][:messages]
     second_messages = @provider.calls[1][:messages]
 
-    assert_includes first_messages[0][:content], 'v'
-    assert_equal 'Previous question', first_messages[1][:content]
+    assert_includes first_messages[0][:content].join, 'v'
+    assert_equal ['Previous question'], first_messages[1][:content]
 
-    assert_includes second_messages[0][:content], 'v'
-    assert_equal 'Previous question', second_messages[1][:content]
+    assert_includes second_messages[0][:content].join, 'v'
+    assert_equal ['Previous question'], second_messages[1][:content]
     refute_equal first_messages[0][:content], second_messages[0][:content]
   end
 
@@ -556,7 +558,7 @@ class TestKernel < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: 'You are helpful.',
       provider: @provider,
-      model: 'test',
+      model: Kernai::Model.new(id: 'test'),
       max_steps: 5,
       skills: :all
     )
@@ -571,10 +573,10 @@ class TestKernel < Minitest::Test
 
     # Second call should include the skill listing as a result message
     second_call = @provider.calls[1]
-    result_msg = second_call[:messages].find { |m| m[:role] == :user && m[:content].include?('name="/skills"') }
+    result_msg = second_call[:messages].find { |m| m[:role] == :user && m[:content].join.include?('name="/skills"') }
     assert result_msg, 'Skill listing should be injected as result'
-    assert_includes result_msg[:content], 'search'
-    assert_includes result_msg[:content], 'Search documents'
+    assert_includes result_msg[:content].join, 'search'
+    assert_includes result_msg[:content].join, 'Search documents'
   end
 
   def test_skills_command_scoped_to_agent_skills
@@ -591,7 +593,7 @@ class TestKernel < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: 'You are helpful.',
       provider: @provider,
-      model: 'test',
+      model: Kernai::Model.new(id: 'test'),
       max_steps: 5,
       skills: [:search]
     )
@@ -604,9 +606,9 @@ class TestKernel < Minitest::Test
     Kernai::Kernel.run(agent, 'List skills')
 
     second_call = @provider.calls[1]
-    result_msg = second_call[:messages].find { |m| m[:role] == :user && m[:content].include?('name="/skills"') }
-    assert_includes result_msg[:content], 'search'
-    refute_includes result_msg[:content], 'hidden'
+    result_msg = second_call[:messages].find { |m| m[:role] == :user && m[:content].join.include?('name="/skills"') }
+    assert_includes result_msg[:content].join, 'search'
+    refute_includes result_msg[:content].join, 'hidden'
   end
 
   def test_skills_command_reflects_dynamic_changes
@@ -619,7 +621,7 @@ class TestKernel < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: 'You are helpful.',
       provider: @provider,
-      model: 'test',
+      model: Kernai::Model.new(id: 'test'),
       max_steps: 5,
       skills: :all
     )
@@ -647,17 +649,17 @@ class TestKernel < Minitest::Test
 
     # First /skills result should only have :initial
     first_result = @provider.calls[1][:messages].find do |m|
-      m[:role] == :user && m[:content].include?('name="/skills"')
+      m[:role] == :user && m[:content].join.include?('name="/skills"')
     end
-    assert_includes first_result[:content], 'initial'
-    refute_includes first_result[:content], 'dynamic'
+    assert_includes first_result[:content].join, 'initial'
+    refute_includes first_result[:content].join, 'dynamic'
 
     # Second /skills result should have both
     second_result = @provider.calls[2][:messages].select do |m|
-      m[:role] == :user && m[:content].include?('name="/skills"')
+      m[:role] == :user && m[:content].join.include?('name="/skills"')
     end.last
-    assert_includes second_result[:content], 'initial'
-    assert_includes second_result[:content], 'dynamic'
+    assert_includes second_result[:content].join, 'initial'
+    assert_includes second_result[:content].join, 'dynamic'
   end
 
   def test_unknown_builtin_command_returns_error
@@ -670,7 +672,9 @@ class TestKernel < Minitest::Test
     assert_equal 'OK', result
 
     second_call = @provider.calls[1]
-    error_msg = second_call[:messages].find { |m| m[:content].include?('error') && m[:content].include?('/unknown') }
+    error_msg = second_call[:messages].find do |m|
+      m[:content].join.include?('error') && m[:content].join.include?('/unknown')
+    end
     assert error_msg, 'Error should be injected for unknown builtin'
   end
 
@@ -683,7 +687,7 @@ class TestKernel < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: 'test',
       provider: @provider,
-      model: 'test',
+      model: Kernai::Model.new(id: 'test'),
       max_steps: 5,
       skills: :all
     )
@@ -711,7 +715,7 @@ class TestKernel < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: 'test',
       provider: @provider,
-      model: 'test',
+      model: Kernai::Model.new(id: 'test'),
       max_steps: 5,
       skills: :all
     )

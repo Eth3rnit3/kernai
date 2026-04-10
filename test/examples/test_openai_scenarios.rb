@@ -24,7 +24,7 @@ class TestOpenaiScenarios < Minitest::Test
       agent = Kernai::Agent.new(
         instructions: INVENTORY_INSTRUCTIONS,
         provider: @provider,
-        model: 'gpt-4.1',
+        model: Kernai::Model.new(id: 'gpt-4.1'),
         max_steps: 5
       )
 
@@ -58,7 +58,7 @@ class TestOpenaiScenarios < Minitest::Test
       agent = Kernai::Agent.new(
         instructions: WEATHER_ADVISOR_INSTRUCTIONS,
         provider: @provider,
-        model: 'gpt-4.1',
+        model: Kernai::Model.new(id: 'gpt-4.1'),
         max_steps: 5
       )
 
@@ -88,7 +88,7 @@ class TestOpenaiScenarios < Minitest::Test
       agent = Kernai::Agent.new(
         instructions: DATA_ANALYST_INSTRUCTIONS,
         provider: @provider,
-        model: 'gpt-4.1',
+        model: Kernai::Model.new(id: 'gpt-4.1'),
         max_steps: 10
       )
 

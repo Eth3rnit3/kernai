@@ -15,7 +15,7 @@ class TestWorkflow < Minitest::Test
     @agent = Kernai::Agent.new(
       instructions: 'You are a manager.',
       provider: @provider,
-      model: 'test-model',
+      model: Kernai::Model.new(id: 'test-model'),
       max_steps: 5,
       skills: :all
     )
@@ -33,14 +33,14 @@ class TestWorkflow < Minitest::Test
   def wire(manager:, sub:)
     manager_step = 0
     @provider.on_call do |messages, _model|
-      system_msg = messages[0][:content]
+      system_msg = messages[0][:content].join
       if system_msg.include?('/workflow')
         @manager_calls << { messages: messages }
         response = manager.call(manager_step, messages)
         manager_step += 1
         response
       else
-        sub.call(messages.last[:content], messages)
+        sub.call(messages.last[:content].join, messages)
       end
     end
   end
@@ -81,11 +81,11 @@ class TestWorkflow < Minitest::Test
 
     second_manager_call = @manager_calls.last
     result_msg = second_manager_call[:messages].find do |m|
-      m[:role] == :user && m[:content].include?('<block type="result" name="tasks">')
+      m[:role] == :user && m[:content].join.include?('<block type="result" name="tasks">')
     end
     refute_nil result_msg
-    assert_includes result_msg[:content], 'result-1'
-    assert_includes result_msg[:content], 'result-2'
+    assert_includes result_msg[:content].join, 'result-1'
+    assert_includes result_msg[:content].join, 'result-2'
   end
 
   # --- Parallelism ---
@@ -207,10 +207,10 @@ class TestWorkflow < Minitest::Test
     assert_equal 1, sub_called, 'only the top-level sub-agent call should have run'
 
     manager_result = @manager_calls.last[:messages].find do |m|
-      m[:role] == :user && m[:content].include?('<block type="result" name="tasks">')
+      m[:role] == :user && m[:content].join.include?('<block type="result" name="tasks">')
     end
     refute_nil manager_result
-    assert_includes manager_result[:content], 'sub-done'
+    assert_includes manager_result[:content].join, 'sub-done'
   end
 
   def test_sub_agent_system_instructions_omit_workflow_hint
@@ -323,12 +323,12 @@ class TestWorkflow < Minitest::Test
     Kernai::Kernel.run(@agent, 'show docs')
 
     doc_msg = @provider.calls[1][:messages].find do |m|
-      m[:role] == :user && m[:content].include?('<block type="result" name="/workflow">')
+      m[:role] == :user && m[:content].join.include?('<block type="result" name="/workflow">')
     end
     refute_nil doc_msg
-    assert_includes doc_msg[:content], 'strategy'
-    assert_includes doc_msg[:content], 'depends_on'
-    assert_includes doc_msg[:content], 'parallel'
+    assert_includes doc_msg[:content].join, 'strategy'
+    assert_includes doc_msg[:content].join, 'depends_on'
+    assert_includes doc_msg[:content].join, 'parallel'
   end
 
   def test_workflow_command_emits_builtin_result_event
@@ -353,10 +353,10 @@ class TestWorkflow < Minitest::Test
     Kernai::Kernel.run(@agent, 'show state')
 
     tasks_msg = @provider.calls[1][:messages].find do |m|
-      m[:role] == :user && m[:content].include?('<block type="result" name="/tasks">')
+      m[:role] == :user && m[:content].join.include?('<block type="result" name="/tasks">')
     end
     refute_nil tasks_msg
-    payload = tasks_msg[:content][%r{<block type="result" name="/tasks">(.*?)</block>}m, 1]
+    payload = tasks_msg[:content].join[%r{<block type="result" name="/tasks">(.*?)</block>}m, 1]
     parsed = JSON.parse(payload)
     assert_kind_of Hash, parsed
     assert_equal [], parsed['tasks']
@@ -385,10 +385,10 @@ class TestWorkflow < Minitest::Test
 
     # After workflow + /tasks, the third manager call carries the /tasks result
     tasks_msg = @manager_calls[2][:messages].find do |m|
-      m[:role] == :user && m[:content].include?('<block type="result" name="/tasks">')
+      m[:role] == :user && m[:content].join.include?('<block type="result" name="/tasks">')
     end
     refute_nil tasks_msg
-    payload = tasks_msg[:content][%r{<block type="result" name="/tasks">(.*?)</block>}m, 1]
+    payload = tasks_msg[:content].join[%r{<block type="result" name="/tasks">(.*?)</block>}m, 1]
     parsed = JSON.parse(payload)
     assert_equal 2, parsed['tasks'].size
     ids = parsed['tasks'].map { |t| t['id'] }.sort
@@ -407,7 +407,9 @@ class TestWorkflow < Minitest::Test
     )
     result = Kernai::Kernel.run(@agent, 'go')
     assert_equal 'ok', result
-    err = @provider.calls[1][:messages].find { |m| m[:content].include?('error') && m[:content].include?('/mystery') }
+    err = @provider.calls[1][:messages].find do |m|
+      m[:content].join.include?('error') && m[:content].join.include?('/mystery')
+    end
     refute_nil err
   end
 

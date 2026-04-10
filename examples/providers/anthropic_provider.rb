@@ -17,7 +17,7 @@ module Kernai
 
       def call(messages:, model:, &block)
         uri = URI(API_URL)
-        system_msg, chat_messages = extract_system(messages)
+        system_msg, chat_messages = extract_system(messages, model)
         payload = build_payload(chat_messages, model, system: system_msg, stream: block_given?)
 
         started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
@@ -43,11 +43,15 @@ module Kernai
 
       private
 
-      def extract_system(messages)
+      # Anthropic expects `content` as a list of typed blocks — never a
+      # raw mixed array. The system message is an exception: it lives
+      # outside `messages` as a plain string, so we flatten it by
+      # extracting the `.text` field from the encoded text blocks.
+      def extract_system(messages, model)
         system_msg = nil
         chat = messages.reject do |m|
           if m[:role].to_s == 'system'
-            system_msg = m[:content]
+            system_msg = encode(m[:content], model: model).map { |p| p['text'] }.compact.join
             true
           end
         end
@@ -56,13 +60,40 @@ module Kernai
 
       def build_payload(messages, model, system: nil, stream: false)
         payload = {
-          model: model,
+          model: model.id,
           max_tokens: 4096,
-          messages: messages.map { |m| { 'role' => m[:role].to_s, 'content' => m[:content] } }
+          messages: messages.map do |m|
+            { 'role' => m[:role].to_s, 'content' => encode(m[:content], model: model) }
+          end
         }
         payload[:system] = system if system
         payload[:stream] = true if stream
         payload
+      end
+
+      # Strings are always wrapped as `{type: text, text: ...}` so the
+      # content array is homogeneous (Anthropic rejects mixed
+      # String/Hash arrays). Images — only when the model declares
+      # `:vision`. Any other media kind falls back to the base class
+      # placeholder, which is itself a String and will re-enter this
+      # method to be wrapped as a text block.
+      def encode_part(part, model:)
+        return { 'type' => 'text', 'text' => part } if part.is_a?(String)
+        return nil unless part.is_a?(Kernai::Media) && part.kind == :image && model.supports?(:vision)
+
+        case part.source
+        when :url
+          { 'type' => 'image', 'source' => { 'type' => 'url', 'url' => part.data } }
+        when :path, :bytes
+          {
+            'type' => 'image',
+            'source' => {
+              'type' => 'base64',
+              'media_type' => part.mime_type,
+              'data' => part.to_base64
+            }
+          }
+        end
       end
 
       def http_post(uri, payload)

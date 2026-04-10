@@ -13,7 +13,7 @@ class TestRecorder < Minitest::Test
     @agent = Kernai::Agent.new(
       instructions: 'You are a helpful assistant.',
       provider: @provider,
-      model: 'test-model',
+      model: Kernai::Model.new(id: 'test-model'),
       max_steps: 10
     )
   end
@@ -124,7 +124,7 @@ class TestRecorder < Minitest::Test
 
     assert_equal :system, messages[0][:role]
     assert_equal :user, messages[1][:role]
-    assert_equal 'Hello there', messages[1][:content]
+    assert_equal ['Hello there'], messages[1][:content]
   end
 
   def test_records_llm_response_with_content_and_stats
@@ -297,9 +297,9 @@ class TestRecorder < Minitest::Test
 
     assert_equal 4, messages.size
     assert_equal :system, messages[0][:role]
-    assert_equal 'Previous question', messages[1][:content]
-    assert_equal 'Previous answer', messages[2][:content]
-    assert_equal 'New question', messages[3][:content]
+    assert_equal ['Previous question'], messages[1][:content]
+    assert_equal ['Previous answer'], messages[2][:content]
+    assert_equal ['New question'], messages[3][:content]
   end
 
   # --- JSON export for scenario creation ---
@@ -357,7 +357,7 @@ class TestRecorder < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: 'test',
       provider: @provider,
-      model: 'test-model',
+      model: Kernai::Model.new(id: 'test-model'),
       max_steps: 5,
       skills: :all
     )

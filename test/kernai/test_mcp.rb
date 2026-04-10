@@ -595,7 +595,7 @@ class TestMCPAdapter < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: 'You are helpful.',
       provider: provider,
-      model: 'test',
+      model: Kernai::Model.new(id: 'test'),
       max_steps: 6
     )
 

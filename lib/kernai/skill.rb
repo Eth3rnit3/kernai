@@ -2,7 +2,7 @@
 
 module Kernai
   class Skill
-    attr_reader :name, :description_text, :inputs, :execute_block
+    attr_reader :name, :description_text, :inputs, :execute_block, :required_capabilities, :produced_kinds
 
     class << self
       def define(name, &block)
@@ -24,7 +24,7 @@ module Kernai
         @mutex.synchronize { registry.values }
       end
 
-      def listing(scope = :all)
+      def listing(scope = :all, model: nil)
         skills = case scope
                  when nil then []
                  when :all then all
@@ -33,6 +33,7 @@ module Kernai
                  end
 
         skills = skills.select { |s| Kernai.config.allowed_skills.include?(s.name) } if Kernai.config.allowed_skills
+        skills = skills.select { |s| s.runnable_on?(model) } if model
 
         return 'No skills available.' if skills.empty?
 
@@ -78,6 +79,8 @@ module Kernai
       @inputs = {}
       @description_text = nil
       @execute_block = nil
+      @required_capabilities = []
+      @produced_kinds = []
     end
 
     def description(text)
@@ -90,6 +93,31 @@ module Kernai
 
     def execute(&block)
       @execute_block = block
+    end
+
+    # Declare the model capabilities the skill needs to be runnable. A
+    # skill that consumes images in its prompt should `requires :vision`
+    # so it stays hidden from text-only models. Multiple calls accumulate.
+    def requires(*caps)
+      @required_capabilities.concat(caps.flatten.map(&:to_sym))
+    end
+
+    # Declare the media kinds the skill may emit back into the conversation
+    # (e.g. `produces :image` for an image-generation tool). Purely
+    # informational for now — the kernel uses it to inform the instruction
+    # builder, and future providers may route the result through an
+    # appropriate output channel.
+    def produces(*kinds)
+      @produced_kinds.concat(kinds.flatten.map(&:to_sym))
+    end
+
+    # A skill is runnable on a given model when that model satisfies every
+    # capability declared via `requires`. Skills with no requirements run
+    # everywhere.
+    def runnable_on?(model)
+      return true if @required_capabilities.empty?
+
+      model.supports?(*@required_capabilities)
     end
 
     def call(params = {})

@@ -58,6 +58,11 @@ module Kernai
         rec = recorder || Kernai.config.recorder
         ctx = context || Context.new
 
+        # Any Media the caller passes directly in `input` is registered in
+        # the store up front so sub-agents and skills can look it up by id
+        # throughout the run.
+        Array(input).grep(Media).each { |m| ctx.media_store.put(m) }
+
         messages = [
           Message.new(role: :system, content: agent.resolve_instructions(workflow_enabled: ctx.root?)),
           *history.map { |m| Message.new(role: m[:role], content: m[:content]) },
@@ -403,7 +408,7 @@ module Kernai
       def execute_builtin(command_name, agent, ctx, rec, step, callback)
         case command_name
         when '/skills'
-          builtin_result(command_name, Skill.listing(agent.skills), rec, ctx, step, callback)
+          builtin_result(command_name, Skill.listing(agent.skills, model: agent.model), rec, ctx, step, callback)
         when '/workflow'
           builtin_result(command_name, WORKFLOW_DOCUMENTATION, rec, ctx, step, callback)
         when '/tasks'
@@ -582,18 +587,16 @@ module Kernai
           record(rec, ctx, step: step, event: :skill_execute, data: { skill: skill_name, params: params })
 
           started = monotonic_ms
-          result = skill.call(params)
+          raw = skill.call(params)
+          parts = SkillResult.wrap(raw, ctx.media_store)
           duration_ms = monotonic_ms - started
 
           Kernai.logger.info(event: 'skill.result', skill: skill_name)
           record(rec, ctx, step: step, event: :skill_result,
-                           data: { skill: skill_name, result: result, duration_ms: duration_ms })
-          callback&.call(Event.new(:skill_result, { skill: skill_name, result: result }))
+                           data: { skill: skill_name, result: raw, duration_ms: duration_ms })
+          callback&.call(Event.new(:skill_result, { skill: skill_name, result: raw }))
 
-          Message.new(
-            role: :user,
-            content: "<block type=\"result\" name=\"#{skill_name}\">#{result}</block>"
-          )
+          Message.new(role: :user, content: wrap_result_block(skill_name, parts))
         rescue StandardError => e
           Kernai.logger.error(event: 'skill.execute', skill: skill_name, error: e.message)
           record(rec, ctx, step: step, event: :skill_error, data: { skill: skill_name, error: e.message })
@@ -606,6 +609,26 @@ module Kernai
         end
       end
       # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
+
+      # Build the content array for a skill <result> message. Text parts
+      # are concatenated inside a single <block type="result"> wrapper;
+      # Media parts are spliced in as their own <block type="media"/>
+      # references so the next provider call can encode them natively.
+      def wrap_result_block(skill_name, parts)
+        text_parts = parts.grep(String)
+        media_parts = parts.grep(Media)
+
+        opening = "<block type=\"result\" name=\"#{skill_name}\">"
+        closing = '</block>'
+
+        content = []
+        content << "#{opening}#{text_parts.join}#{closing}"
+        media_parts.each do |media|
+          content << "<block type=\"media\" id=\"#{media.id}\" kind=\"#{media.kind}\" mime=\"#{media.mime_type}\"/>"
+          content << media
+        end
+        content
+      end
 
       def parse_command_params(content, skill)
         content = content.strip

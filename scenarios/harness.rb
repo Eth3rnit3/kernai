@@ -68,6 +68,25 @@ module Scenarios
     end
 
     attr_writer :default_provider
+
+    # Capability catalogue for the handful of model families the harness
+    # knows about. Scenarios that need something else either pass their
+    # own `capabilities` list or accept the conservative text-only default.
+    KNOWN_CAPABILITIES = {
+      /claude/ => %i[text vision],
+      /gpt-4o/ => %i[text vision audio_in audio_out],
+      /gpt-4/ => %i[text vision],
+      /gemini/ => %i[text vision audio_in video_in document_in],
+      /llava/ => %i[text vision],
+      /llama3\.2-vision/ => %i[text vision],
+      /gemma3/ => %i[text vision],
+      /gemma/ => %i[text]
+    }.freeze
+
+    def capabilities_for(model_id)
+      match = KNOWN_CAPABILITIES.find { |pattern, _| pattern.match?(model_id) }
+      match ? match.last : %i[text]
+    end
   end
 
   register_provider('ollama', default_model: 'gemma3:27b') do
@@ -92,6 +111,7 @@ module Scenarios
       @max_steps = 10
       @mcp_config = nil
       @protocols = nil
+      @capabilities = nil
     end
 
     def instructions(text = nil, &block)
@@ -102,12 +122,24 @@ module Scenarios
       @skills << { name: name, block: block }
     end
 
-    def input(text)
-      @input = text
+    # Scenario input. Accepts a plain string (text-only scenarios), a
+    # single `Kernai::Media`, or a mixed array of strings and media — the
+    # kernel wraps anything non-Array into a one-element list itself, so
+    # `input 'hi'` and `input ['hi', an_image]` are both valid.
+    def input(value)
+      @input = value
     end
 
     def max_steps(count)
       @max_steps = count
+    end
+
+    # Override the capabilities inferred from the model id. Use this when
+    # driving a model the harness catalogue doesn't know about, or when a
+    # scenario needs to assert a specific capability set (e.g. forcing
+    # text-only to verify the provider's fallback path).
+    def capabilities(list)
+      @capabilities = list.map(&:to_sym)
     end
 
     # Activate the optional MCP adapter for this scenario. Accepts either a
@@ -159,17 +191,19 @@ module Scenarios
       @events = []
 
       skill_names = @skills.map { |s| s[:name] }
+      caps = @capabilities || Scenarios.capabilities_for(model)
+      model_obj = Kernai::Model.new(id: model, capabilities: caps)
 
       agent = Kernai::Agent.new(
         instructions: @instructions,
         provider: provider,
-        model: model,
+        model: model_obj,
         max_steps: @max_steps,
         skills: skill_names.any? ? skill_names : nil,
         protocols: @protocols
       )
 
-      header(provider_name, model)
+      header(provider_name, model, caps)
 
       @failure = nil
 
@@ -244,15 +278,22 @@ module Scenarios
 
     # --- Output ---
 
-    def header(provider_name, model)
+    def header(provider_name, model, caps)
       puts
       puts "\e[1;36m#{'=' * 70}\e[0m"
       puts "\e[1;36m  SCENARIO: #{@name}\e[0m"
       puts "\e[36m  #{@description}\e[0m" if @description
       puts "\e[36m  Provider: #{provider_name} | Model: #{model}\e[0m"
-      puts "\e[36m  Input: #{@input}\e[0m"
+      puts "\e[36m  Capabilities: #{caps.join(', ')}\e[0m"
+      puts "\e[36m  Input: #{format_input(@input)}\e[0m"
       puts "\e[1;36m#{'=' * 70}\e[0m"
       puts
+    end
+
+    def format_input(value)
+      Array(value).map do |p|
+        p.is_a?(Kernai::Media) ? "[#{p.kind}:#{p.mime_type}]" : p.to_s
+      end.join(' ')
     end
 
     # A dispatch table over event types. Each branch is a tiny format
@@ -272,7 +313,7 @@ module Scenarios
         print event.data
       when :skill_result
         puts
-        puts "\e[32m  => #{event.data[:skill]}: #{truncate(event.data[:result], 200)}\e[0m"
+        puts "\e[32m  => #{event.data[:skill]}: #{truncate(format_skill_result(event.data[:result]), 200)}\e[0m"
       when :skill_error
         puts
         puts "\e[31m  !! #{event.data[:skill]}: #{event.data[:error]}\e[0m"
@@ -347,7 +388,7 @@ module Scenarios
           puts "    \e[33mSkill call: #{e[:data][:skill]}(#{format_params(e[:data][:params])})\e[0m"
         end
         entries.select { |e| e[:event] == :skill_result }.each do |e|
-          puts "    \e[32mSkill result: #{truncate(e[:data][:result].to_s, 120)}\e[0m"
+          puts "    \e[32mSkill result: #{truncate(format_skill_result(e[:data][:result]), 120)}\e[0m"
         end
         entries.select { |e| e[:event] == :skill_error }.each do |e|
           puts "    \e[31mSkill error: #{e[:data][:error]}\e[0m"
@@ -467,6 +508,20 @@ module Scenarios
       return '' unless params
 
       params.map { |k, v| "#{k}: #{truncate(v.to_s, 50)}" }.join(', ')
+    end
+
+    # Skill results can be strings, Media objects, or mixed arrays.
+    # The reporter wants one human-readable line — render Media parts
+    # as `[kind:mime id=...]` so the produced media is visible without
+    # dumping the underlying bytes.
+    def format_skill_result(value)
+      Array(value).map do |part|
+        if part.is_a?(Kernai::Media)
+          "[#{part.kind}:#{part.mime_type} id=#{part.id}]"
+        else
+          part.to_s
+        end
+      end.join(' ')
     end
   end
 

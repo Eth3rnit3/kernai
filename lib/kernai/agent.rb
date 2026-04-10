@@ -9,7 +9,10 @@ module Kernai
     #   nil  → all registered protocols are allowed (default)
     #   []   → no protocol is allowed (explicit opt-out)
     #   [:mcp, :a2a] → only the named protocols are allowed
-    def initialize(instructions:, provider: nil, model: nil, max_steps: 10, skills: nil, protocols: nil)
+    def initialize(instructions:, provider: nil, model: Models::TEXT_ONLY, max_steps: 10, skills: nil,
+                   protocols: nil)
+      raise ArgumentError, 'model: must be a Kernai::Model' unless model.is_a?(Model)
+
       @instructions = instructions
       @provider = provider
       @model = model
@@ -21,6 +24,7 @@ module Kernai
     def resolve_instructions(workflow_enabled: true)
       InstructionBuilder.new(
         @instructions,
+        model: @model,
         skills: @skills,
         protocols: @protocols,
         workflow_enabled: workflow_enabled

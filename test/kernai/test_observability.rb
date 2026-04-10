@@ -19,7 +19,7 @@ class TestObservability < Minitest::Test
     @agent = Kernai::Agent.new(
       instructions: 'manager',
       provider: @provider,
-      model: 'test-model',
+      model: Kernai::Model.new(id: 'test-model'),
       max_steps: 5,
       skills: :all
     )
@@ -36,7 +36,7 @@ class TestObservability < Minitest::Test
   def wire_manager(plan, sub_response)
     manager_step = 0
     @provider.on_call do |messages, _model|
-      if messages[0][:content].include?('/workflow')
+      if messages[0][:content].join.include?('/workflow')
         response = manager_step.zero? ? plan_block(plan) : '<block type="final">ok</block>'
         manager_step += 1
         response

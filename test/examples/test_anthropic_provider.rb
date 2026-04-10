@@ -21,7 +21,7 @@ class TestAnthropicProvider < Minitest::Test
           { role: :system, content: BLOCK_INSTRUCTIONS },
           { role: :user, content: 'What is 2+2?' }
         ],
-        model: 'claude-sonnet-4-20250514'
+        model: Kernai::Model.new(id: 'claude-sonnet-4-20250514')
       )
 
       assert_kind_of Kernai::LlmResponse, result
@@ -40,7 +40,7 @@ class TestAnthropicProvider < Minitest::Test
           { role: :system, content: BLOCK_INSTRUCTIONS },
           { role: :user, content: 'What is 2+2?' }
         ],
-        model: 'claude-sonnet-4-20250514'
+        model: Kernai::Model.new(id: 'claude-sonnet-4-20250514')
       )
 
       parsed = Kernai::Parser.parse(response.content)
@@ -59,7 +59,7 @@ class TestAnthropicProvider < Minitest::Test
           { role: :system, content: BLOCK_INSTRUCTIONS },
           { role: :user, content: 'What is 2+2?' }
         ],
-        model: 'claude-sonnet-4-20250514'
+        model: Kernai::Model.new(id: 'claude-sonnet-4-20250514')
       )
 
       assert_includes result.content, '4'
@@ -76,7 +76,7 @@ class TestAnthropicProvider < Minitest::Test
           { role: :system, content: BLOCK_INSTRUCTIONS },
           { role: :user, content: 'What is 2+2?' }
         ],
-        model: 'claude-sonnet-4-20250514'
+        model: Kernai::Model.new(id: 'claude-sonnet-4-20250514')
       ) { |chunk| chunks << chunk }
 
       assert chunks.size > 1, 'Should receive multiple chunks'
@@ -97,7 +97,7 @@ class TestAnthropicProvider < Minitest::Test
           { role: :system, content: BLOCK_INSTRUCTIONS },
           { role: :user, content: 'What is 2+2?' }
         ],
-        model: 'claude-sonnet-4-20250514'
+        model: Kernai::Model.new(id: 'claude-sonnet-4-20250514')
       ) { |chunk| parser.push(chunk) }
 
       parser.flush
@@ -115,7 +115,7 @@ class TestAnthropicProvider < Minitest::Test
       agent = Kernai::Agent.new(
         instructions: BLOCK_INSTRUCTIONS,
         provider: @provider,
-        model: 'claude-sonnet-4-20250514'
+        model: Kernai::Model.new(id: 'claude-sonnet-4-20250514')
       )
 
       result = Kernai::Kernel.run(agent, 'What is 2+2?')

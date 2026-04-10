@@ -36,12 +36,39 @@ module Kernai
 
       private
 
+      # Ollama's chat API carries text in `content` and tucks inline image
+      # bytes into a sibling `images` array (base64 strings). Parts are
+      # emitted as tagged hashes so build_message can route them to the
+      # right field without guessing whether a bare String is user text
+      # or a base64 blob.
       def build_payload(messages, model, stream: false)
         {
-          model: model,
-          messages: messages.map { |m| { 'role' => m[:role].to_s, 'content' => m[:content] } },
+          model: model.id,
+          messages: messages.map { |m| build_message(m, model) },
           stream: stream
         }
+      end
+
+      def build_message(msg, model)
+        encoded = encode(msg[:content], model: model)
+        text = encoded.select { |p| p[:type] == :text }.map { |p| p[:text] }.join
+        images = encoded.select { |p| p[:type] == :image }.map { |p| p[:data] }
+
+        payload = { 'role' => msg[:role].to_s, 'content' => text }
+        payload['images'] = images unless images.empty?
+        payload
+      end
+
+      # Strings become text parts; inline base64 images become image
+      # parts when the model declares `:vision`. URL-backed images and
+      # non-image media fall back to the base class placeholder, which
+      # re-enters this method and is wrapped as a text part.
+      def encode_part(part, model:)
+        return { type: :text, text: part } if part.is_a?(String)
+        return nil unless part.is_a?(Kernai::Media) && part.kind == :image && model.supports?(:vision)
+        return nil if part.url?
+
+        { type: :image, data: part.to_base64 }
       end
 
       def non_stream_request(uri, payload)

@@ -5,15 +5,16 @@ module Kernai
   # its tasks, accumulated task results and recursion depth. Sub-agents
   # receive a fresh child context so their state never pollutes the parent.
   class Context
-    attr_reader :depth
+    attr_reader :depth, :media_store
     attr_accessor :plan, :tasks, :task_results, :current_task_id
 
-    def initialize(plan: nil, tasks: nil, task_results: nil, depth: 0, current_task_id: nil)
+    def initialize(plan: nil, tasks: nil, task_results: nil, depth: 0, current_task_id: nil, media_store: nil)
       @plan = plan
       @tasks = tasks || []
       @task_results = task_results || {}
       @depth = depth
       @current_task_id = current_task_id
+      @media_store = media_store || MediaStore.new
       @mutex = Mutex.new
     end
 
@@ -50,9 +51,11 @@ module Kernai
     end
 
     # Build an isolated child context for a sub-agent. Depth is incremented
-    # so nested plans can be detected and ignored.
+    # so nested plans can be detected and ignored. The media store is
+    # shared so any Media a parent or sibling produced is visible to the
+    # child — workflows need this to pass images between tasks.
     def spawn_child
-      self.class.new(depth: @depth + 1)
+      self.class.new(depth: @depth + 1, media_store: @media_store)
     end
 
     def to_h

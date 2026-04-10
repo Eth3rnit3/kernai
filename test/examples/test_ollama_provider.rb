@@ -21,7 +21,7 @@ class TestOllamaProvider < Minitest::Test
           { role: :system, content: BLOCK_INSTRUCTIONS },
           { role: :user, content: 'What is 2+2?' }
         ],
-        model: 'gemma3:27b'
+        model: Kernai::Model.new(id: 'gemma3:27b')
       )
 
       assert_kind_of Kernai::LlmResponse, result
@@ -40,7 +40,7 @@ class TestOllamaProvider < Minitest::Test
           { role: :system, content: BLOCK_INSTRUCTIONS },
           { role: :user, content: 'What is 2+2?' }
         ],
-        model: 'gemma3:27b'
+        model: Kernai::Model.new(id: 'gemma3:27b')
       )
 
       parsed = Kernai::Parser.parse(response.content)
@@ -61,7 +61,7 @@ class TestOllamaProvider < Minitest::Test
           { role: :system, content: BLOCK_INSTRUCTIONS },
           { role: :user, content: 'What is 2+2?' }
         ],
-        model: 'gemma3:27b'
+        model: Kernai::Model.new(id: 'gemma3:27b')
       ) { |chunk| chunks << chunk }
 
       assert chunks.size > 1, 'Should receive multiple chunks'
@@ -82,7 +82,7 @@ class TestOllamaProvider < Minitest::Test
           { role: :system, content: BLOCK_INSTRUCTIONS },
           { role: :user, content: 'What is 2+2?' }
         ],
-        model: 'gemma3:27b'
+        model: Kernai::Model.new(id: 'gemma3:27b')
       ) { |chunk| parser.push(chunk) }
 
       parser.flush
@@ -101,7 +101,7 @@ class TestOllamaProvider < Minitest::Test
       agent = Kernai::Agent.new(
         instructions: BLOCK_INSTRUCTIONS,
         provider: @provider,
-        model: 'gemma3:27b'
+        model: Kernai::Model.new(id: 'gemma3:27b')
       )
 
       result = Kernai::Kernel.run(agent, 'What is 2+2?')

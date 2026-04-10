@@ -38,7 +38,7 @@ class TestIntegration < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: 'You are a database assistant. Use blocks to communicate.',
       provider: provider,
-      model: 'gpt-4',
+      model: Kernai::Model.new(id: 'gpt-4'),
       max_steps: 5
     )
 
@@ -64,9 +64,11 @@ class TestIntegration < Minitest::Test
     # Validate conversation flow
     assert_equal 2, provider.call_count
     second_messages = provider.calls[1][:messages]
-    result_msg = second_messages.find { |m| m[:content].include?('result') && m[:content].include?('postgres') }
+    result_msg = second_messages.find do |m|
+      m[:content].join.include?('result') && m[:content].join.include?('postgres')
+    end
     assert result_msg
-    assert_includes result_msg[:content], 'Alice'
+    assert_includes result_msg[:content].join, 'Alice'
   end
 
   def test_multi_skill_scenario
@@ -92,7 +94,7 @@ class TestIntegration < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: 'You are a research assistant.',
       provider: provider,
-      model: 'gpt-4',
+      model: Kernai::Model.new(id: 'gpt-4'),
       max_steps: 5
     )
 
@@ -122,15 +124,15 @@ class TestIntegration < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: instructions,
       provider: provider,
-      model: 'test',
+      model: Kernai::Model.new(id: 'test'),
       max_steps: 5
     )
 
     Kernai::Kernel.run(agent, 'Go')
 
     # Instructions lambda is re-evaluated each step, producing different system messages
-    first_system = provider.calls[0][:messages][0][:content]
-    second_system = provider.calls[1][:messages][0][:content]
+    first_system = provider.calls[0][:messages][0][:content].join
+    second_system = provider.calls[1][:messages][0][:content].join
     refute_equal first_system, second_system
     assert_includes first_system, 'v'
     assert_includes second_system, 'v'
@@ -157,7 +159,7 @@ class TestIntegration < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: 'test',
       provider: provider,
-      model: 'test',
+      model: Kernai::Model.new(id: 'test'),
       max_steps: 5
     )
 
@@ -172,7 +174,7 @@ class TestIntegration < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: 'test',
       provider: provider,
-      model: 'test'
+      model: Kernai::Model.new(id: 'test')
     )
 
     text_chunks = []
@@ -207,7 +209,7 @@ class TestIntegration < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: 'test',
       provider: provider,
-      model: 'test',
+      model: Kernai::Model.new(id: 'test'),
       max_steps: 5
     )
 
@@ -216,7 +218,7 @@ class TestIntegration < Minitest::Test
 
     # First call had blocked skill → error injected
     second_messages = provider.calls[1][:messages]
-    error_msg = second_messages.find { |m| m[:content].include?('not allowed') }
+    error_msg = second_messages.find { |m| m[:content].join.include?('not allowed') }
     assert error_msg
   end
 
@@ -242,7 +244,7 @@ class TestIntegration < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: 'test',
       provider: provider,
-      model: 'test',
+      model: Kernai::Model.new(id: 'test'),
       max_steps: 5
     )
 
@@ -272,7 +274,7 @@ class TestIntegration < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: 'test',
       provider: provider,
-      model: 'test'
+      model: Kernai::Model.new(id: 'test')
     )
 
     Kernai::Kernel.run(agent, 'Call the API')
@@ -302,7 +304,7 @@ class TestIntegration < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: 'test',
       provider: custom_provider.new,
-      model: 'custom'
+      model: Kernai::Model.new(id: 'custom')
     )
 
     result = Kernai::Kernel.run(agent, 'Hi')

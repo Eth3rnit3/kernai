@@ -10,11 +10,11 @@ class TestAgent < Minitest::Test
     agent = Kernai::Agent.new(
       instructions: 'You are helpful',
       provider: provider,
-      model: 'gpt-4',
+      model: Kernai::Model.new(id: 'gpt-4'),
       max_steps: 5
     )
 
-    assert_equal 'gpt-4', agent.model
+    assert_equal 'gpt-4', agent.model.id
     assert_equal 5, agent.max_steps
     assert_equal provider, agent.provider
   end

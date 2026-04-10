@@ -44,14 +44,30 @@ module Kernai
 
       def build_payload(messages, model, stream: false)
         payload = {
-          model: model,
-          messages: messages.map { |m| { 'role' => m[:role].to_s, 'content' => m[:content] } }
+          model: model.id,
+          messages: messages.map do |m|
+            { 'role' => m[:role].to_s, 'content' => encode(m[:content], model: model) }
+          end
         }
         if stream
           payload[:stream] = true
           payload[:stream_options] = { 'include_usage' => true }
         end
         payload
+      end
+
+      # OpenAI chat completions accept vision parts as `image_url` objects.
+      # We honour both URL-backed media and inline bytes (encoded as a data
+      # URI). Anything else falls back to the base class placeholder.
+      def encode_part(part, model:)
+        return { 'type' => 'text', 'text' => part } if part.is_a?(String)
+        return nil unless part.is_a?(Kernai::Media) && part.kind == :image && model.supports?(:vision)
+
+        url = case part.source
+              when :url then part.data
+              when :path, :bytes then "data:#{part.mime_type};base64,#{part.to_base64}"
+              end
+        { 'type' => 'image_url', 'image_url' => { 'url' => url } }
       end
 
       def http_post(uri, payload)
