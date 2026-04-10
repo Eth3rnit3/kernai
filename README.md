@@ -71,32 +71,100 @@ end
 
 ## Architecture
 
+### Execution flow
+
+Every call to `Kernai::Kernel.run(agent, input)` walks a single, fully
+deterministic loop. Each step produces one LLM response, classifies the
+blocks it contains, and dispatches them. The loop keeps going until the
+agent emits a `<final>` block, replies with plain prose (no blocks), or
+hits `max_steps`.
+
+```mermaid
+flowchart TD
+    Input([User input]) --> Run["Kernel.run(agent, input)"]
+    Run --> Build[Build messages:<br/>system + history + user]
+    Build --> StepCheck{Step &lt; max_steps?}
+    StepCheck -- no --> MaxErr[/MaxStepsReachedError/]
+
+    StepCheck -- yes --> Hot[Hot-reload system prompt<br/>from agent.instructions]
+    Hot --> Call["provider.call → LlmResponse<br/>(streamed)"]
+    Call --> Parse[StreamParser<br/>→ parsed blocks]
+    Parse --> Classify{Blocks in response}
+
+    Classify -- "plan JSON workflow" --> Workflow[TaskScheduler<br/>spawns sub-agents for each task]
+    Classify -- "command and/or protocol blocks" --> Actionable[Execute in source order<br/>• commands → Kernai::Skill<br/>• protocol blocks → Kernai::Protocol]
+    Classify -- "final" --> Final([Return final content])
+    Classify -- "only plan / json" --> InfoOnly[Inject corrective error block<br/>continue — do NOT terminate]
+    Classify -- "no blocks" --> Raw([Return raw text as result])
+
+    Workflow --> Inject[Inject &lt;block type=result&gt;<br/>as user message]
+    Actionable --> Inject
+    Inject --> StepCheck
+    InfoOnly --> StepCheck
+
+    Final --> Out([Final result])
+    Raw --> Out
 ```
-User Input
-    |
-    v
- Kernel.run(agent, input)
-    |
-    v
- Build Messages [system, user]
-    |
-    v
- +------ Execution Loop ------+
- |  1. Hot reload instructions |
- |  2. Provider.call (LLM)    |
- |  3. StreamParser -> blocks  |
- |  4. Dispatch:               |
- |     command -> skill.call   |
- |     final   -> return       |
- |     plan    -> emit event   |
- |     json    -> emit event   |
- |  5. Inject results          |
- |  6. Repeat or stop          |
- +-----------------------------+
-    |
-    v
- Final Result
+
+Key things the diagram encodes:
+
+- **Commands and protocol blocks coexist** on the same rail and are executed
+  in the order the LLM emitted them — so a single response can interleave
+  `<block type="command" name="...">` and `<block type="mcp">` and both will
+  fire deterministically.
+- **Informational-only turns don't terminate the loop.** If the agent emits
+  only `<plan>` or `<json>` blocks, the kernel injects a corrective error
+  block and gives it another step. This accommodates smaller models that
+  split reasoning and action across turns.
+- **Plain prose with no blocks** still terminates gracefully with the raw
+  text as the result — so a pure chatbot agent (no skills, no protocols)
+  works without any special case.
+
+### Sub-agents and scoping
+
+A workflow plan block expands into a DAG of sub-agents. Each sub-agent is
+an independent `Kernel.run` call with its own context, but it shares the
+parent's provider, model, skills and protocols — and, since the fix to
+`build_sub_agent`, the **full** `max_steps` budget.
+
+```mermaid
+flowchart LR
+    Root["Root agent<br/>(depth=0)"] --> Plan["&lt;block type=plan&gt;<br/>workflow JSON"]
+    Plan --> Sched[TaskScheduler<br/>respects depends_on + parallel]
+    Sched -- "task t1" --> Sub1["Sub-agent<br/>depth=1, task_id=t1"]
+    Sched -- "task t2" --> Sub2["Sub-agent<br/>depth=1, task_id=t2"]
+    Sub1 --> Merge[Aggregate task results<br/>as &lt;block type=result name=tasks&gt;]
+    Sub2 --> Merge
+    Merge --> Root
 ```
+
+Sub-agents **cannot** emit their own nested workflow plans — `ctx.root?`
+gates plan detection. This caps recursion at one level and keeps the
+observability tree legible.
+
+### Observability rail
+
+Every meaningful event inside the kernel — LLM request/response, skill
+execution, protocol execution, workflow lifecycle, informational-only
+branch, task start/complete — fans out to **three destinations at once**.
+This is the core of Kernai's "everything is traceable" promise.
+
+```mermaid
+flowchart LR
+    Event[["Kernel event<br/>(e.g. :protocol_result)"]]
+    Event --> Logger["Kernai::Logger<br/>structured line output"]
+    Event --> Recorder["Kernai::Recorder<br/>append-only, scoped with<br/>depth + task_id + timestamp"]
+    Event --> Callback["Streaming callback<br/>live consumer"]
+
+    Recorder --> Dump[/recorder.to_a<br/>→ replayable JSON/]
+    Callback --> Live[/Live UI / harness /<br/>progress indicator/]
+    Logger --> Stderr[/STDOUT or file/]
+```
+
+Because every emission goes through the same `record(rec, ctx, ...)`
+helper, **nothing is ever recorded without its execution scope** (depth,
+task_id). The flat event stream can always be rebuilt into a parent/child
+tree by a consumer reading the log.
 
 ### Core Components
 
