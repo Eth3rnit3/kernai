@@ -28,4 +28,9 @@ jobs:
           bundler-cache: true
 
       - name: Run tests (unit + examples with VCR replay)
+        env:
+          # Cassettes were recorded against the public Ollama Cloud API.
+          # VCR matches on method + uri, so the runtime URI must equal
+          # what's in the cassette for replay to work.
+          OLLAMA_BASE_URL: https://api.ollama.com
         run: bundle exec rake test
