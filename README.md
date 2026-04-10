@@ -81,30 +81,42 @@ hits `max_steps`.
 
 ```mermaid
 flowchart TD
-    Input([User input]) --> Run["Kernel.run(agent, input)"]
+    Input([User input]) --> Run["Kernai::Kernel.run(agent, input)"]
     Run --> Build[Build messages:<br/>system + history + user]
-    Build --> StepCheck{Step &lt; max_steps?}
-    StepCheck -- no --> MaxErr[/MaxStepsReachedError/]
+    Build --> Loop[["Execution loop<br/>up to max_steps iterations"]]
 
-    StepCheck -- yes --> Hot[Hot-reload system prompt<br/>from agent.instructions]
+    Loop --> Hot[Hot-reload system prompt<br/>from agent.instructions]
     Hot --> Call["provider.call → LlmResponse<br/>(streamed)"]
     Call --> Parse[StreamParser<br/>→ parsed blocks]
     Parse --> Classify{Blocks in response}
 
     Classify -- "plan JSON workflow" --> Workflow[TaskScheduler<br/>spawns sub-agents for each task]
     Classify -- "command and/or protocol blocks" --> Actionable[Execute in source order<br/>• commands → Kernai::Skill<br/>• protocol blocks → Kernai::Protocol]
-    Classify -- "final" --> Final([Return final content])
+    Classify -- "final" --> SetFinal[break with<br/>result = final.content]
     Classify -- "only plan / json" --> InfoOnly[Inject corrective error block<br/>continue — do NOT terminate]
-    Classify -- "no blocks" --> Raw([Return raw text as result])
+    Classify -- "no blocks" --> SetRaw[break with<br/>result = raw text]
 
     Workflow --> Inject[Inject &lt;block type=result&gt;<br/>as user message]
     Actionable --> Inject
-    Inject --> StepCheck
-    InfoOnly --> StepCheck
+    Inject --> Loop
+    InfoOnly --> Loop
 
-    Final --> Out([Final result])
-    Raw --> Out
+    SetFinal --> Out([Final result])
+    SetRaw --> Out
+    Loop -. "all iterations ran<br/>without setting a result" .-> MaxErr[/MaxStepsReachedError/]
 ```
+
+Note the two distinct ways the loop exits:
+
+- **Clean break** (`final` or `no blocks` branch) — `result` is set inside
+  the loop body, which `break`s out of `.times`. The post-loop check finds
+  a non-nil `result` and returns it. This path is hit even if it lands on
+  the very last allowed iteration: max_steps is a ceiling, not a forced
+  early termination.
+- **Exhaustion** (the dotted edge) — every iteration went through workflow,
+  actionable, or informational-only branches and the agent never converged
+  on a `final` or a plain-prose answer. `.times` exits naturally, `result`
+  is still `nil`, and the post-loop check raises `MaxStepsReachedError`.
 
 Key things the diagram encodes:
 
@@ -165,6 +177,126 @@ Because every emission goes through the same `record(rec, ctx, ...)`
 helper, **nothing is ever recorded without its execution scope** (depth,
 task_id). The flat event stream can always be rebuilt into a parent/child
 tree by a consumer reading the log.
+
+### Example conversation
+
+Here is what an actual exchange looks like on the wire, for an agent that
+has a local `translate` skill AND access to an MCP filesystem server.
+This is the complete message tape as Kernai assembles and sends it to
+the provider on each step — exactly what you'd see by dumping
+`:messages_sent` from the recorder.
+
+Notice three things while reading it:
+
+1. Every "action" response from the assistant is a set of one or more
+   XML blocks — never loose prose.
+2. Skill and protocol results are injected back into the conversation as
+   **user** messages (not system, not assistant), which keeps the whole
+   loop compatible with any vanilla chat-completion API.
+3. Commands and protocol blocks can be interleaved in the same response
+   and are executed **in source order**. Here the agent first calls an
+   MCP tool, then chains a skill call in a later turn after seeing the
+   result.
+
+```text
+┌── System ──────────────────────────────────────────────────────────┐
+│ [Your agent.instructions text]                                     │
+│                                                                    │
+│ ## RESPONSE FORMAT (non-negotiable)                                │
+│ You communicate EXCLUSIVELY through XML blocks.                    │
+│ ... [block types, /skills, /protocols rules injected by            │
+│      Kernai::InstructionBuilder] ...                               │
+└────────────────────────────────────────────────────────────────────┘
+┌── User ────────────────────────────────────────────────────────────┐
+│ Read /tmp/notes/hello.txt via MCP and translate its first line     │
+│ to French.                                                         │
+└────────────────────────────────────────────────────────────────────┘
+
+═════════════════════════════ step 0 ═════════════════════════════
+
+┌── Assistant (LLM) ─────────────────────────────────────────────────┐
+│ <block type="plan">                                                │
+│ I don't know the file contents. I'll read it via the MCP           │
+│ filesystem server, then translate the first line with the local    │
+│ translate skill.                                                   │
+│ </block>                                                           │
+│ <block type="mcp">                                                 │
+│ {"method":"tools/call","params":{                                  │
+│   "server":"fs",                                                   │
+│   "name":"read_text_file",                                         │
+│   "arguments":{"path":"/tmp/notes/hello.txt"}                      │
+│ }}                                                                 │
+│ </block>                                                           │
+└────────────────────────────────────────────────────────────────────┘
+
+   ↓ kernel dispatches the <mcp> block to the Protocol :mcp handler,
+     which forwards it to ruby-mcp-client and gets the file contents
+     back as a String. Events :protocol_execute and :protocol_result
+     are emitted to the logger + recorder + streaming callback.
+
+┌── User (injected by kernel) ───────────────────────────────────────┐
+│ <block type="result" name="mcp">                                   │
+│ Hello, world!                                                      │
+│ This is a second line of notes.                                    │
+│ </block>                                                           │
+└────────────────────────────────────────────────────────────────────┘
+
+═════════════════════════════ step 1 ═════════════════════════════
+
+┌── Assistant (LLM) ─────────────────────────────────────────────────┐
+│ <block type="plan">                                                │
+│ Got the contents. The first line is "Hello, world!". Now I call    │
+│ the translate skill.                                               │
+│ </block>                                                           │
+│ <block type="command" name="translate">                            │
+│ {"text":"Hello, world!","target":"fr"}                             │
+│ </block>                                                           │
+└────────────────────────────────────────────────────────────────────┘
+
+   ↓ kernel dispatches the <command> to Kernai::Skill[:translate],
+     passes the JSON as kwargs, and receives the translation.
+     Events :skill_execute and :skill_result are emitted.
+
+┌── User (injected by kernel) ───────────────────────────────────────┐
+│ <block type="result" name="translate">                             │
+│ Bonjour, le monde !                                                │
+│ </block>                                                           │
+└────────────────────────────────────────────────────────────────────┘
+
+═════════════════════════════ step 2 ═════════════════════════════
+
+┌── Assistant (LLM) ─────────────────────────────────────────────────┐
+│ <block type="final">                                               │
+│ The first line of /tmp/notes/hello.txt is "Hello, world!",         │
+│ which translates to "Bonjour, le monde !" in French.               │
+│ </block>                                                           │
+└────────────────────────────────────────────────────────────────────┘
+
+   ↓ <final> exits the loop. Kernel.run returns:
+     "The first line of /tmp/notes/hello.txt is \"Hello, world!\",
+      which translates to \"Bonjour, le monde !\" in French."
+```
+
+A few useful things to note from this tape:
+
+- **The conversation grows linearly.** Step 1's LLM call sends the full
+  history: system + original user input + assistant turn 0 + injected
+  result + assistant turn 1 so far. The kernel never hides anything from
+  the model.
+- **`<plan>` blocks are not thrown away.** They're emitted to the
+  `:plan` event channel for observability, but they also stay in the
+  assistant message the LLM sees on the next turn — so the model's
+  chain-of-thought remains visible to itself across turns.
+- **If the agent had emitted only `<plan>` in step 0** (no `<mcp>`),
+  the kernel would have injected a corrective
+  `<block type="error">...informational blocks only...</block>` as a
+  user message and given the agent another step to recover. Small models
+  often need that nudge; large models rarely do.
+- **If the LLM had put the skill call and the MCP call in the same
+  response**, both would have executed in source order and both results
+  would have been injected as two successive user messages in the next
+  turn. The two rails are completely symmetric from the kernel's point
+  of view.
 
 ### Core Components
 
