@@ -13,7 +13,7 @@ module Kernai
   class TaskScheduler
     # Raised when pending tasks remain but none are ready — i.e. the task
     # graph cannot progress.
-    class DeadlockError < StandardError; end
+    class DeadlockError < Kernai::Error; end
 
     STRATEGIES = %w[sequential parallel mixed].freeze
     DEFAULT_STRATEGY = 'mixed'

@@ -246,4 +246,10 @@ class TestTaskScheduler < Minitest::Test
     end
     assert_includes err.message, 'a'
   end
+
+  def test_deadlock_error_inherits_from_kernai_error
+    # Regression: DeadlockError must be rescuable via Kernai::Error so a
+    # caller can wrap a whole workflow with a single rescue clause.
+    assert Kernai::TaskScheduler::DeadlockError < Kernai::Error
+  end
 end

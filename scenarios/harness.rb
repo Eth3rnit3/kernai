@@ -37,20 +37,50 @@ require_relative '../examples/providers/openai_provider'
 require_relative '../examples/providers/anthropic_provider'
 
 module Scenarios
+  # Module-level registry of providers the harness can drive. Built-in
+  # providers (ollama / openai / anthropic) are seeded below; any user
+  # script can call `Scenarios.register_provider` at require time to
+  # plug in their own, without editing this file.
+  #
+  #   Scenarios.register_provider('mistral', default_model: 'mistral-large') do
+  #     MyMistralProvider.new(api_key: ENV.fetch('MISTRAL_API_KEY'))
+  #   end
+  class << self
+    def register_provider(name, default_model: nil, &factory)
+      raise ArgumentError, 'provider factory block required' unless block_given?
+
+      key = name.to_s
+      providers[key] = factory
+      default_models[key] = default_model if default_model
+      key
+    end
+
+    def providers
+      @providers ||= {}
+    end
+
+    def default_models
+      @default_models ||= {}
+    end
+
+    def default_provider
+      @default_provider ||= 'ollama'
+    end
+
+    attr_writer :default_provider
+  end
+
+  register_provider('ollama', default_model: 'gemma3:27b') do
+    Kernai::Examples::OllamaProvider.new
+  end
+  register_provider('openai', default_model: 'gpt-4.1') do
+    Kernai::Examples::OpenaiProvider.new
+  end
+  register_provider('anthropic', default_model: 'claude-sonnet-4-20250514') do
+    Kernai::Examples::AnthropicProvider.new
+  end
+
   class Harness
-    PROVIDERS = {
-      'ollama' => -> { Kernai::Examples::OllamaProvider.new },
-      'openai' => -> { Kernai::Examples::OpenaiProvider.new },
-      'anthropic' => -> { Kernai::Examples::AnthropicProvider.new }
-    }.freeze
-
-    DEFAULT_PROVIDER = 'ollama'
-    DEFAULT_MODELS = {
-      'ollama' => 'gemma3:27b',
-      'openai' => 'gpt-4.1',
-      'anthropic' => 'claude-sonnet-4-20250514'
-    }.freeze
-
     attr_reader :recorder, :result, :events
 
     def initialize(name:, description: nil)
@@ -101,10 +131,13 @@ module Scenarios
     # across files without making it simpler.
     # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
     def run!
-      provider_name = ENV['PROVIDER'] || ARGV[1] || DEFAULT_PROVIDER
-      model = ENV['MODEL'] || ARGV[0] || DEFAULT_MODELS[provider_name]
+      provider_name = ENV['PROVIDER'] || ARGV[1] || Scenarios.default_provider
+      model = ENV['MODEL'] || ARGV[0] || Scenarios.default_models[provider_name]
 
-      abort "Unknown provider: #{provider_name}" unless PROVIDERS.key?(provider_name)
+      unless Scenarios.providers.key?(provider_name)
+        abort "Unknown provider: #{provider_name} " \
+              "(known: #{Scenarios.providers.keys.join(', ')})"
+      end
 
       Kernai.reset!
       Kernai.config.debug = true
@@ -121,7 +154,7 @@ module Scenarios
       # dependency is missing so the harness stays usable without it.
       return unless setup_mcp!
 
-      provider = PROVIDERS[provider_name].call
+      provider = Scenarios.providers[provider_name].call
       @recorder = Kernai::Recorder.new
       @events = []
 

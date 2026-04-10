@@ -21,8 +21,8 @@ module Kernai
   # names come from the MCP spec, plus one Kernai extension (`servers/list`)
   # that exposes the multiplexing layer the adapter adds on top.
   module MCP
-    class ConfigError < StandardError; end
-    class DependencyMissingError < StandardError; end
+    class ConfigError < Kernai::Error; end
+    class DependencyMissingError < Kernai::Error; end
 
     MCP_DOCUMENTATION = <<~DOC
       MCP (Model Context Protocol) external access.

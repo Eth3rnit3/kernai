@@ -251,6 +251,16 @@ class TestMCPAdapter < Minitest::Test
     end
   end
 
+  def test_mcp_errors_inherit_from_kernai_error
+    # Regression: MCP-specific errors must be rescuable via Kernai::Error,
+    # so users can wrap a whole agent call with a single rescue clause.
+    assert Kernai::MCP::ConfigError < Kernai::Error
+    assert Kernai::MCP::DependencyMissingError < Kernai::Error
+
+    # And they must still be StandardError descendants for generic rescue.
+    assert Kernai::MCP::ConfigError < StandardError
+  end
+
   def test_load_raises_on_missing_servers_key
     Tempfile.open(['mcp_test', '.yml']) do |f|
       f.write("not_servers: {}\n")
