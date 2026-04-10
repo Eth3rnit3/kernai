@@ -2,6 +2,8 @@
 
 A minimal, extensible Ruby gem for building AI agents through a **universal structured block protocol**. Simple orchestration, dynamic skills, streaming support, full observability — zero external dependencies.
 
+![Kernai — Universal block protocol for AI agents](docs/kernai.png)
+
 ## Philosophy
 
 - **Simplicity** over magic
