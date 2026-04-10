@@ -69,15 +69,15 @@ class TestMCPAdapter < Minitest::Test
 
     # --- MCPClient::Client surface ---
 
-    def list_tools(cache: true)
+    def list_tools(cache: true) # rubocop:disable Lint/UnusedMethodArgument
       @tools.dup
     end
 
-    def list_resources(cache: true, cursor: nil)
+    def list_resources(cache: true, cursor: nil) # rubocop:disable Lint/UnusedMethodArgument
       @resources.dup
     end
 
-    def list_prompts(cache: true)
+    def list_prompts(cache: true) # rubocop:disable Lint/UnusedMethodArgument
       @prompts.dup
     end
 

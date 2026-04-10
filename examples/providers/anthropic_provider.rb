@@ -11,6 +11,7 @@ module Kernai
       API_VERSION = '2023-06-01'
 
       def initialize(api_key: ENV['ANTHROPIC_API_KEY'])
+        super()
         @api_key = api_key
       end
 

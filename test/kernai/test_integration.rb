@@ -292,7 +292,7 @@ class TestIntegration < Minitest::Test
 
   def test_provider_subclass_works_with_kernel
     custom_provider = Class.new(Kernai::Provider) do
-      def call(messages:, model:, &block)
+      def call(messages:, model:, &block) # rubocop:disable Lint/UnusedMethodArgument
         text = '<block type="final">Custom provider response</block>'
         text.each_char { |c| block.call(c) } if block
         Kernai::LlmResponse.new(content: text, latency_ms: 1)

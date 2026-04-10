@@ -10,6 +10,11 @@ module Kernai
     SHORTHAND_PATTERN = %r{<(#{SHORTHAND_TYPES})(?:\s+name="([^"]*)")?\s*>(.*?)</\1>}m
 
     class << self
+      # Scans the response text once and weaves blocks and text
+      # segments back in source order. The method is linear but touches
+      # a lot of locals (matches, positions, segments) which drives AbcSize
+      # up without adding real complexity.
+      # rubocop:disable Metrics/AbcSize
       def parse(text)
         blocks = []
         text_segments = []
@@ -50,6 +55,7 @@ module Kernai
 
         { blocks: blocks, text_segments: text_segments }
       end
+      # rubocop:enable Metrics/AbcSize
     end
   end
 end

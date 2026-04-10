@@ -44,6 +44,13 @@ module Kernai
     DOC
 
     class << self
+      # The main agent loop. Cohesive by design: every branch of the
+      # dispatch — workflow vs command vs protocol vs final vs
+      # informational-only vs chatbot fallback — belongs here so the
+      # execution contract is visible in one place. Splitting would
+      # force the reader to chase state across multiple methods without
+      # making the logic simpler.
+      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/BlockLength
       def run(agent, input, provider: nil, history: [], recorder: nil, context: nil, &callback)
         provider = resolve_provider(agent, provider)
         raise ProviderError, 'No provider configured' unless provider
@@ -150,6 +157,7 @@ module Kernai
 
         result
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/BlockLength
 
       private
 
@@ -301,8 +309,13 @@ module Kernai
         )
       end
 
+      # The returned lambda is a self-contained task runner: spawn a
+      # sub-agent, wire its context, emit start/complete/error events
+      # with the scope inherited from the scheduler's context. All four
+      # observability touches (log, record, callback, duration) live in
+      # the same block on purpose.
       def build_task_runner(agent, provider, rec, callback)
-        lambda do |task, sched_context|
+        lambda do |task, sched_context| # rubocop:disable Metrics/BlockLength
           sub_agent = build_sub_agent(agent)
           sub_context = sched_context.spawn_child
           sub_context.current_task_id = task.id
@@ -435,6 +448,12 @@ module Kernai
 
       # --- Protocol execution ---
 
+      # The length of this method is intentional: every observability
+      # path (logger, recorder, streaming callback) must be covered for
+      # the not-allowed / missing-handler / success / error branches,
+      # and that flow is clearer as one linear sequence than split
+      # across half a dozen helpers that would obscure the invariants.
+      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       def execute_protocol(block, agent, ctx, rec, step, callback)
         protocol_name = block.type
 
@@ -500,6 +519,7 @@ module Kernai
           )
         end
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
       # A protocol handler may return:
       #   - a String  → wrapped by the kernel as <block type="result" name="...">
@@ -525,6 +545,12 @@ module Kernai
         end
       end
 
+      # Mirrors execute_protocol: the length tracks the number of
+      # observability channels we must touch for every branch, not
+      # complexity of the logic itself. Splitting these branches into
+      # helpers would obscure the invariant "every path emits log +
+      # recorder + callback in the same shape".
+      # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       def execute_skill(skill_name, content, rec, ctx, step, callback)
         skill = Skill.find(skill_name)
 
@@ -579,6 +605,7 @@ module Kernai
           )
         end
       end
+      # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
       def parse_command_params(content, skill)
         content = content.strip

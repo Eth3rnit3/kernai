@@ -158,7 +158,8 @@ module Kernai
           # but one of its own dependencies failed to load".
           if e.message.include?('mcp_client') && !e.message.include?('mcp_client/')
             raise DependencyMissingError,
-                  "Kernai::MCP requires the 'ruby-mcp-client' gem. Add `gem \"ruby-mcp-client\"` to your Gemfile. (#{e.message})"
+                  "Kernai::MCP requires the 'ruby-mcp-client' gem. " \
+                  "Add `gem \"ruby-mcp-client\"` to your Gemfile. (#{e.message})"
           end
 
           raise DependencyMissingError,

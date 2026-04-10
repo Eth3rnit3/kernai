@@ -76,8 +76,8 @@ module Scenarios
       @input = text
     end
 
-    def max_steps(n)
-      @max_steps = n
+    def max_steps(count)
+      @max_steps = count
     end
 
     # Activate the optional MCP adapter for this scenario. Accepts either a
@@ -95,6 +95,11 @@ module Scenarios
       @protocols = list
     end
 
+    # The scenario entry point: wire up the provider, optional MCP
+    # adapter, run the agent, rescue and record terminal errors, save
+    # the log. Splitting this further would scatter the "one run" story
+    # across files without making it simpler.
+    # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
     def run!
       provider_name = ENV['PROVIDER'] || ARGV[1] || DEFAULT_PROVIDER
       model = ENV['MODEL'] || ARGV[0] || DEFAULT_MODELS[provider_name]
@@ -157,6 +162,7 @@ module Scenarios
     ensure
       teardown_mcp!
     end
+    # rubocop:enable Metrics/AbcSize, Metrics/MethodLength
 
     private
 
@@ -216,6 +222,10 @@ module Scenarios
       puts
     end
 
+    # A dispatch table over event types. Each branch is a tiny format
+    # statement — the length is the number of event kinds we surface,
+    # not algorithmic complexity.
+    # rubocop:disable Metrics/AbcSize
     def print_event_live(event)
       case event.type
       when :block_start
@@ -251,11 +261,17 @@ module Scenarios
         puts
       end
     end
+    # rubocop:enable Metrics/AbcSize
 
     def print_error(msg)
       puts "\e[1;31m  ERROR: #{msg}\e[0m"
     end
 
+    # The post-run reporter. It walks the recorder stream step by step
+    # and prints every event kind we care about, colored. It is long
+    # because the recorder emits many kinds of events, not because the
+    # logic is intricate.
+    # rubocop:disable Metrics/AbcSize, Metrics/MethodLength, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
     def report(_provider_name, _model)
       puts
       puts "\e[1;35m#{'─' * 70}\e[0m"
@@ -335,6 +351,7 @@ module Scenarios
 
       puts "\e[1;35m#{'─' * 70}\e[0m"
     end
+    # rubocop:enable Metrics/AbcSize, Metrics/MethodLength, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
     def save_log(provider_name, model)
       slug = model.gsub(/[^a-zA-Z0-9._-]/, '_')

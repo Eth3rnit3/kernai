@@ -16,15 +16,55 @@ AllCops:
     - 'config/**/*'
     - 'vendor/**/*'
     - 'node_modules/**/*'
+  NewCops: disable
 
 Style/Documentation:
   Enabled: false
 
 Metrics/AbcSize:
-  Max: 30
+  Max: 40
+  Exclude:
+    - 'test/**/*.rb'
 
 Metrics/MethodLength:
-  Max: 30
+  Max: 40
+  Exclude:
+    - 'test/**/*.rb'
 
 Metrics/ClassLength:
   Enabled: false
+
+# The kernel dispatch loop and a few cohesive helper methods cross the
+# default module-length threshold. Splitting them across files would hurt
+# readability more than it helps — the module is "the kernel", one unit.
+Metrics/ModuleLength:
+  Enabled: false
+
+# Scenarios are written as a single DSL block (`Scenarios.define(name) do ... end`)
+# whose length is driven by the domain (prompt, skills, seed data). Same
+# for the harness reporter and the matrix runner. Tests also routinely
+# have long describe/setup blocks. BlockLength is not a useful signal
+# in any of these contexts.
+Metrics/BlockLength:
+  Exclude:
+    - 'scenarios/**/*.rb'
+    - 'test/**/*.rb'
+    - 'spec/**/*.rb'
+    - '*.gemspec'
+
+# Several private kernel/mcp helpers take the recorder + context + step
+# + callback quartet alongside their actual work, pushing them to 6-7
+# parameters. Turning them into a bag hash would be a step backwards
+# (worse readability, no type safety). 7 is our natural cadence.
+Metrics/ParameterLists:
+  Max: 7
+  CountKeywordArgs: true
+
+# The kernel run loop and the MCP dispatch case/when are naturally
+# branchy — they are routers, not business logic. A slightly higher
+# limit keeps them within spec without artificial splits.
+Metrics/CyclomaticComplexity:
+  Max: 15
+
+Metrics/PerceivedComplexity:
+  Max: 15

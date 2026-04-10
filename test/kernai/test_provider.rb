@@ -15,7 +15,7 @@ class TestProvider < Minitest::Test
 
   def test_custom_subclass_can_implement_call
     custom_class = Class.new(Kernai::Provider) do
-      def call(messages:, model:)
+      def call(messages:, model:) # rubocop:disable Lint/UnusedMethodArgument
         Kernai::LlmResponse.new(content: 'custom response', latency_ms: 1)
       end
     end

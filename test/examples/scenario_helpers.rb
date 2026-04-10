@@ -18,7 +18,9 @@ module ScenarioHelpers
         expr = expr.gsub(/\bplus\b/i, '+')
         expr = expr.gsub(/\bminus\b/i, '-')
         expr = expr.gsub(/\bmodulo\b/i, '%')
-        result = eval(expr) # safe: only used in controlled test context
+        # Controlled test context only — the calculator skill helper
+        # receives strings the test wrote itself, never user input.
+        result = eval(expr) # rubocop:disable Security/Eval
         result.to_s
       rescue StandardError => e
         "Error: #{e.message}"

@@ -10,6 +10,7 @@ module Kernai
       DEFAULT_BASE_URL = 'http://localhost:11434'
 
       def initialize(api_key: ENV['OLLAMA_API_KEY'], base_url: ENV.fetch('OLLAMA_BASE_URL', DEFAULT_BASE_URL))
+        super()
         @api_key = api_key
         @base_url = base_url.chomp('/')
       end

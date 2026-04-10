@@ -104,7 +104,8 @@ Scenarios.define(
   end
 
   skill(:deployments) do
-    description 'List recent deployments across all services. Returns JSON array with service, version, timestamp, and author'
+    description 'List recent deployments across all services. ' \
+                'Returns JSON array with service, version, timestamp, and author'
     input :timeframe, String, default: '24h'
 
     execute do |_params|
@@ -171,7 +172,8 @@ Scenarios.define(
                         { timestamp: '2025-04-06T14:31:00Z', level: 'WARN', service: 'api-gateway',
                           message: 'Health check failed: auth-service unreachable on port 8443' },
                         { timestamp: '2025-04-06T14:31:30Z', level: 'INFO', service: 'api-gateway',
-                          message: 'Upstream auth-service still listening on port 8080 (legacy), but gateway configured for 8443 (TLS)' }
+                          message: 'Upstream auth-service still listening on port 8080 (legacy), ' \
+                                   'but gateway configured for 8443 (TLS)' }
                       ])
       else
         JSON.generate([])

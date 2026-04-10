@@ -66,20 +66,20 @@ def resolve_scenarios(spec)
      .sort
 end
 
+RESULT_STATUS_STYLE = {
+  ok: ["\e[32m", 'OK'],
+  fail: ["\e[31m", 'FAIL'],
+  skipped: ["\e[33m", 'SKIP'],
+  error: ["\e[35m", 'ERR']
+}.freeze
+
 Result = Struct.new(
   :scenario, :provider, :model, :status, :duration_s,
   :log_path, :summary, :steps, keyword_init: true
 ) do
-  STATUS_STYLE = {
-    ok:      ["\e[32m", 'OK'],
-    fail:    ["\e[31m", 'FAIL'],
-    skipped: ["\e[33m", 'SKIP'],
-    error:   ["\e[35m", 'ERR']
-  }.freeze
-
-  def color; STATUS_STYLE.fetch(status).first; end
-  def label; STATUS_STYLE.fetch(status).last;  end
-  def reset; "\e[0m"; end
+  def color = RESULT_STATUS_STYLE.fetch(status).first
+  def label = RESULT_STATUS_STYLE.fetch(status).last
+  def reset = "\e[0m"
 
   def to_h
     {
@@ -145,9 +145,7 @@ def interpret(stdout, process_status, log_path)
     }
   end
 
-  unless log_path && File.exist?(log_path)
-    return { status: :error, summary: 'no log produced', steps: nil }
-  end
+  return { status: :error, summary: 'no log produced', steps: nil } unless log_path && File.exist?(log_path)
 
   data = JSON.parse(File.read(log_path))
   steps = data['steps']
@@ -168,7 +166,8 @@ def print_header(scenarios)
   puts
   puts "\e[1;36m#{'=' * 110}\e[0m"
   puts "\e[1;36m  Kernai scenario matrix\e[0m"
-  puts "\e[36m  #{scenarios.size} scenarios × #{MATRIX.size} (provider, model) pairs = #{scenarios.size * MATRIX.size} runs\e[0m"
+  total_runs = scenarios.size * MATRIX.size
+  puts "\e[36m  #{scenarios.size} scenarios × #{MATRIX.size} (provider, model) pairs = #{total_runs} runs\e[0m"
   puts "\e[36m  Scenarios: #{scenarios.join(', ')}\e[0m"
   puts "\e[1;36m#{'=' * 110}\e[0m"
 end
@@ -180,14 +179,21 @@ end
 
 def print_result(result)
   puts format(
-    '  %s%-5s%s  %-38s  %6.1fs  steps=%-3s %s',
-    result.color, result.label, result.reset,
-    result.scenario, result.duration_s,
-    (result.steps || '-').to_s,
-    result.summary.to_s
+    '  %<color>s%-5<label>s%<reset>s  %-38<scenario>s  %6.1<duration>fs  steps=%-3<steps>s %<summary>s',
+    color: result.color,
+    label: result.label,
+    reset: result.reset,
+    scenario: result.scenario,
+    duration: result.duration_s,
+    steps: (result.steps || '-').to_s,
+    summary: result.summary.to_s
   )
 end
 
+# Pure rendering function: builds a scenario × matrix table with
+# per-cell color. The length/complexity is driven by the colored
+# padding logic, not by branching business rules.
+# rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 def print_matrix(results, scenarios)
   puts
   puts "\e[1;35m#{'=' * 110}\e[0m"
@@ -195,7 +201,7 @@ def print_matrix(results, scenarios)
   puts "\e[1;35m#{'=' * 110}\e[0m"
 
   models = MATRIX.map { |row| "#{row[:provider]}:#{row[:model]}" }
-  col_width = ([models.map(&:length).max || 0, 14].max) + 2
+  col_width = [models.map(&:length).max || 0, 14].max + 2
   scenario_col = scenarios.map(&:length).max + 2
 
   header = format("  %-#{scenario_col}s", 'Scenario')
@@ -220,22 +226,23 @@ def print_matrix(results, scenarios)
 
   puts
   tally = results.group_by(&:status).transform_values(&:size)
-  parts = Result::STATUS_STYLE.map do |status, (color, label)|
+  parts = RESULT_STATUS_STYLE.map do |status, (color, label)|
     count = tally[status] || 0
     "#{color}#{label}: #{count}\e[0m"
   end
   puts "  Totals: #{parts.join('   ')}"
 end
+# rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
 
 def save_summary(results, scenarios)
   FileUtils.mkdir_p(LOGS_DIR)
   path = File.join(LOGS_DIR, "matrix_#{Time.now.strftime('%Y%m%d_%H%M%S')}.json")
   File.write(path, JSON.pretty_generate(
-    started_at: Time.now.iso8601,
-    matrix: MATRIX,
-    scenarios: scenarios,
-    results: results.map(&:to_h)
-  ))
+                     started_at: Time.now.iso8601,
+                     matrix: MATRIX,
+                     scenarios: scenarios,
+                     results: results.map(&:to_h)
+                   ))
   puts "\e[2m  Matrix summary saved: #{path}\e[0m"
   puts
 end

@@ -10,6 +10,7 @@ module Kernai
       API_URL = 'https://api.openai.com/v1/chat/completions'
 
       def initialize(api_key: ENV['OPENAI_API_KEY'])
+        super()
         @api_key = api_key
       end
 

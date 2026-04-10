@@ -6,6 +6,7 @@ module Kernai
       attr_reader :calls
 
       def initialize
+        super
         @responses = []
         @call_count = 0
         @calls = []

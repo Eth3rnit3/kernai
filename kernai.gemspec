@@ -7,7 +7,11 @@ Gem::Specification.new do |spec|
   spec.version       = Kernai::VERSION
   spec.authors       = ['Eth3rnit3']
   spec.summary       = 'A minimal, extensible AI agent kernel based on a universal structured block protocol'
-  spec.description   = 'Kernai is an AI agent kernel based on a universal block protocol, enabling simple, dynamic, observable and fully controlled orchestration without external dependencies.'
+  spec.description   = <<~DESC
+    Kernai is an AI agent kernel based on a universal block protocol,
+    enabling simple, dynamic, observable and fully controlled
+    orchestration without external dependencies.
+  DESC
   spec.homepage      = 'https://github.com/Eth3rnit3/kernai'
   spec.license       = 'MIT'
 

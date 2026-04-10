@@ -79,7 +79,8 @@ Scenarios.define(
   end
 
   skill(:transform_rows) do
-    description 'Normalize rows: lowercase email, drop rows with missing/invalid email. Returns JSON {cleaned_count, rows}'
+    description 'Normalize rows: lowercase email, drop rows with missing/invalid email. ' \
+                'Returns JSON {cleaned_count, rows}'
     input :payload, String
 
     execute do |_params|
