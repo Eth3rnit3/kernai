@@ -158,17 +158,36 @@ module Kernai
         if params.key?(name)
           value = params[name]
           unless value.is_a?(spec[:type])
-            raise ArgumentError, "Expected #{name} to be #{spec[:type]}, got #{value.class}"
+            raise ArgumentError,
+                  "Expected #{name} to be #{spec[:type]}, got #{value.class}.\n\n" \
+                  "#{schema_hint(params)}"
           end
 
           result[name] = value
         elsif spec[:default] != :__no_default__
           result[name] = spec[:default]
         else
-          raise ArgumentError, "Missing required input: #{name}"
+          raise ArgumentError,
+                "Missing required input: #{name} for skill '#{@name}'.\n\n" \
+                "#{schema_hint(params)}"
         end
       end
       result
+    end
+
+    # Builds a self-contained schema reminder included in every validation
+    # error. The goal is to make the error self-correcting: when the agent
+    # picks the wrong parameter shape (often pulled from training priors
+    # like Aider/Cursor), the next turn sees exactly which params are
+    # expected and how to call the skill, so it recovers in one retry.
+    def schema_hint(received_params)
+      expected = @inputs.keys.join(', ')
+      received = received_params.respond_to?(:keys) ? received_params.keys.join(', ') : '(none)'
+      <<~HINT.strip
+        Got params:      #{received.empty? ? '(none)' : received}
+        Expected params: #{expected}
+        Usage:           #{usage_example}
+      HINT
     end
   end
 end

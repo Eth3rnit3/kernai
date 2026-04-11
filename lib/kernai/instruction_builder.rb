@@ -115,10 +115,15 @@ module Kernai
         #{protocols_builtin_hint}#{workflow_hint}
         Workflow:
         1. Start by listing available skills with /skills#{protocols_workflow_hint}
-        2. Use <block type="command"> to call skills when you need data or actions
-        3. You will receive results in <block type="result"> or errors in <block type="error">
-        4. Analyze results and call more skills if needed
-        5. When done, provide your final answer in <block type="final">
+        2. Before calling a skill for the first time, locate it in the /skills
+           output and copy its parameter names EXACTLY from the "Inputs:" line
+           and the example in "Usage:". Do NOT infer parameter names from
+           memory or from other tools you may know (Aider, Cursor, Anthropic
+           Edit, OpenAI function calls, etc.) — they will not match.
+        3. Use <block type="command"> to call skills when you need data or actions
+        4. You will receive results in <block type="result"> or errors in <block type="error">
+        5. Analyze results and call more skills if needed
+        6. When done, provide your final answer in <block type="final">
       PROTOCOL
     end
 
