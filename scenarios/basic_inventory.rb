@@ -14,15 +14,6 @@ Scenarios.define('inventory_lookup', description: 'LLM must query inventory skil
     You are a warehouse inventory assistant. You have NO knowledge of the product catalog.
     You MUST use the inventory skill to look up any product information.
     Never guess or assume product details — always query first.
-
-    You MUST respond using XML blocks:
-    <block type="plan">your reasoning</block>
-    <block type="command" name="inventory">search query</block>
-    <block type="final">your answer</block>
-
-    Available skills:
-    - inventory: Look up products. Usage: <block type="command" name="inventory">search query</block>
-      Returns a JSON array of products with fields: sku, name, price, stock
   PROMPT
 
   skill(:inventory) do

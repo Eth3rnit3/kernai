@@ -46,17 +46,6 @@ Scenarios.define(
     - Your final answer MUST include: severity, affected service, root cause,
       evidence trail, and recommended action
     - Be precise with timestamps and versions
-
-    Example interaction flow:
-
-    User: Alert firing on payments-service
-    Assistant: <block type="command" name="/skills"></block>
-    System: <block type="result" name="/skills">- alert_details: ...</block>
-    Assistant: <block type="command" name="alert_details">payments-service</block>
-    System: <block type="result" name="alert_details">{"service": "payments-service", ...}</block>
-    Assistant: <block type="command" name="metrics">payments-service</block>
-    ...
-    Assistant: <block type="final">**Incident Summary** ...</block>
   PROMPT
 
   skill(:alert_details) do

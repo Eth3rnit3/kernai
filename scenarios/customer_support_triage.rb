@@ -32,15 +32,6 @@ Scenarios.define(
     - Include the customer's name and plan in your response
     - If a known issue matches, mention it explicitly
     - Be concise and factual
-
-    Example interaction flow:
-
-    User: Customer #7 says they can't log in
-    Assistant: <block type="command" name="/skills"></block>
-    System: <block type="result" name="/skills">- customer_lookup: ...</block>
-    Assistant: <block type="command" name="customer_lookup">7</block>
-    System: <block type="result" name="customer_lookup">{"name": "Alice", ...}</block>
-    Assistant: <block type="final">Alice (premium plan) is experiencing login issues. ...</block>
   PROMPT
 
   skill(:customer_lookup) do
