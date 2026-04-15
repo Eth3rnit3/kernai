@@ -8,12 +8,15 @@ module Kernai
   class Error < StandardError; end
   class SkillNotFoundError < Error; end
   class SkillNotAllowedError < Error; end
+  class CredentialMissingError < Error; end
   class MaxStepsReachedError < Error; end
   class ProviderError < Error; end
 end
 
 require_relative 'kernai/version'
 require_relative 'kernai/config'
+require_relative 'kernai/credential_resolver'
+require_relative 'kernai/skill_context'
 require_relative 'kernai/logger'
 require_relative 'kernai/media'
 require_relative 'kernai/media_store'

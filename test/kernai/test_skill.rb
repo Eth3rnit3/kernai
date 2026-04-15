@@ -433,4 +433,96 @@ class TestSkill < Minitest::Test
   def test_listing_empty_registry
     assert_equal 'No skills available.', Kernai::Skill.listing(:all)
   end
+
+  # --- config / credential DSL ---
+
+  def test_define_skill_with_config_and_credentials
+    skill = Kernai::Skill.define(:search) do
+      description 'Search'
+      input :query, String
+      config :endpoint, String, default: 'https://api.example.com'
+      credential :api_key, required: true
+      execute { |p, _ctx| p[:query] }
+    end
+
+    assert_equal %i[endpoint], skill.configs.keys
+    assert_equal 'https://api.example.com', skill.configs[:endpoint][:default]
+    assert_equal %i[api_key], skill.credentials.keys
+    assert_equal true, skill.credentials[:api_key][:required]
+  end
+
+  def test_call_passes_context_when_block_accepts_two_args
+    seen = nil
+    Kernai::Skill.define(:search) do
+      input :query, String
+      credential :api_key
+      execute { |p, ctx| seen = ctx.class; "ok-#{p[:query]}" }
+    end
+    Kernai.config.credential_resolver = Kernai::HashResolver.new
+    assert_equal 'ok-hi', Kernai::Skill.find(:search).call(query: 'hi')
+    assert_equal Kernai::SkillContext, seen
+  end
+
+  def test_call_legacy_single_arg_block_still_works
+    Kernai::Skill.define(:legacy) do
+      input :name, String
+      execute { |p| "hi #{p[:name]}" }
+    end
+    assert_equal 'hi alice', Kernai::Skill.find(:legacy).call(name: 'alice')
+  end
+
+  def test_call_raises_credential_missing_error_from_execute_block
+    Kernai::Skill.define(:search) do
+      input :query, String
+      credential :api_key, required: true
+      execute { |p, ctx| "#{p[:query]}-#{ctx.credential(:api_key)}" }
+    end
+    Kernai.config.credential_resolver = Kernai::HashResolver.new
+    assert_raises(Kernai::CredentialMissingError) do
+      Kernai::Skill.find(:search).call(query: 'x')
+    end
+  end
+
+  def test_to_description_shows_config_declarations
+    Kernai::Skill.define(:search) do
+      description 'Search the web'
+      input :query, String
+      config :endpoint, String, default: 'https://api.example.com'
+      execute { |p| p[:query] }
+    end
+    desc = Kernai::Skill.find(:search).to_description
+    assert_includes desc, 'Config:'
+    assert_includes desc, 'endpoint'
+    assert_includes desc, 'https://api.example.com'
+  end
+
+  def test_to_description_never_leaks_credential_values
+    ENV['KERNAI_SKILL_SEARCH_API_KEY'] = 'super-secret-value'
+    Kernai::Skill.define(:search) do
+      description 'Search'
+      input :query, String
+      credential :api_key, required: true
+      execute { |p, ctx| ctx.credential(:api_key) }
+    end
+    desc = Kernai::Skill.find(:search).to_description
+    assert_includes desc, 'Credentials:'
+    assert_includes desc, 'api_key'
+    refute_includes desc, 'super-secret-value'
+  ensure
+    ENV.delete('KERNAI_SKILL_SEARCH_API_KEY')
+  end
+
+  def test_listing_never_leaks_credential_values
+    ENV['KERNAI_SKILL_SEARCH_API_KEY'] = 'leak-me-if-you-can'
+    Kernai::Skill.define(:search) do
+      description 'Search'
+      input :query, String
+      credential :api_key, required: true
+      execute { |p, ctx| ctx.credential(:api_key) }
+    end
+    listing = Kernai::Skill.listing(:all)
+    refute_includes listing, 'leak-me-if-you-can'
+  ensure
+    ENV.delete('KERNAI_SKILL_SEARCH_API_KEY')
+  end
 end

@@ -2,7 +2,8 @@
 
 module Kernai
   class Skill
-    attr_reader :name, :description_text, :inputs, :execute_block, :required_capabilities, :produced_kinds
+    attr_reader :name, :description_text, :inputs, :execute_block, :required_capabilities, :produced_kinds,
+                :configs, :credentials
 
     class << self
       def define(name, &block)
@@ -77,6 +78,8 @@ module Kernai
     def initialize(name)
       @name = name.to_sym
       @inputs = {}
+      @configs = {}
+      @credentials = {}
       @description_text = nil
       @execute_block = nil
       @required_capabilities = []
@@ -89,6 +92,23 @@ module Kernai
 
     def input(name, type, default: :__no_default__)
       @inputs[name] = { type: type, default: default }
+    end
+
+    # Declare a non-secret configuration value. Visible in the skill's
+    # description (so the agent knows the knob exists) but its resolved
+    # value is never included in any LLM-facing rendering — only the
+    # execute block sees the value, via `ctx.config(:key)`.
+    def config(name, type = String, default: nil, description: nil)
+      @configs[name.to_sym] = { type: type, default: default, description: description }
+    end
+
+    # Declare a credential the skill needs. Credentials are *never*
+    # rendered with their resolved values; only the declaration (name
+    # + required flag) is visible. The execute block reads the value
+    # via `ctx.credential(:key)`, which validates `required: true` at
+    # access time.
+    def credential(name, required: false, description: nil)
+      @credentials[name.to_sym] = { required: required, description: description }
     end
 
     def execute(&block)
@@ -122,7 +142,19 @@ module Kernai
 
     def call(params = {})
       validated = validate_params(params)
-      @execute_block.call(validated)
+
+      # Arity compat: legacy skills take `|params|` only. New skills
+      # opt into `|params, ctx|` to reach credentials/config. We pass
+      # the context only when the block can accept it.
+      #   |p|        → arity 1  → legacy
+      #   |p, c|     → arity 2  → new
+      #   |p, *rest| → arity -2 → new (splat can absorb ctx)
+      arity = @execute_block.arity
+      if arity >= 2 || arity <= -2
+        @execute_block.call(validated, SkillContext.new(self))
+      else
+        @execute_block.call(validated)
+      end
     end
 
     def to_description
@@ -136,6 +168,24 @@ module Kernai
         end.join(', ')
         parts << "\n  Inputs: #{inputs_str}"
         parts << "\n  Usage: #{usage_example}"
+      end
+      if @configs.any?
+        configs_str = @configs.map do |name, spec|
+          str = "#{name} (#{spec[:type].name})"
+          str += " default: #{spec[:default]}" unless spec[:default].nil?
+          str
+        end.join(', ')
+        parts << "\n  Config: #{configs_str}"
+      end
+      # IMPORTANT: credentials never include resolved values in this
+      # rendering. Declaring them here just signals to the agent that
+      # the skill is backed by configured secrets (so it understands
+      # why a CredentialMissingError might happen at runtime).
+      if @credentials.any?
+        creds_str = @credentials.map do |name, spec|
+          spec[:required] ? "#{name} (required)" : name.to_s
+        end.join(', ')
+        parts << "\n  Credentials: #{creds_str}"
       end
       parts.join
     end

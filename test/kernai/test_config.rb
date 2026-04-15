@@ -76,4 +76,24 @@ class TestConfig < Minitest::Test
     Kernai.config.logger = custom_logger
     assert_equal custom_logger, Kernai.logger
   end
+
+  def test_default_credential_resolver_is_env_resolver
+    assert_instance_of Kernai::EnvResolver, Kernai.config.credential_resolver
+  end
+
+  def test_default_config_resolver_is_env_config_resolver
+    assert_instance_of Kernai::EnvConfigResolver, Kernai.config.config_resolver
+  end
+
+  def test_credential_resolver_is_assignable
+    custom = Kernai::HashResolver.new(foo: 'bar')
+    Kernai.config.credential_resolver = custom
+    assert_equal custom, Kernai.config.credential_resolver
+  end
+
+  def test_reset_restores_default_resolvers
+    Kernai.config.credential_resolver = Kernai::HashResolver.new
+    Kernai.reset!
+    assert_instance_of Kernai::EnvResolver, Kernai.config.credential_resolver
+  end
 end
