@@ -12,11 +12,29 @@ module Kernai
         @calls = []
         @on_call = nil
         @token_provider = nil
+        @failures = {}
       end
 
       # Queue a response (consumed in order, last one repeats).
       def respond_with(*texts)
         @responses.concat(texts)
+        self
+      end
+
+      # Same behavior as `respond_with` but indexed by step number for
+      # scenarios where associating a response with its step is clearer
+      # than positional ordering. Keys must be a contiguous run of
+      # non-negative integers starting at 0; missing steps would break
+      # the "last response repeats" contract.
+      def respond_with_script(script)
+        sorted_keys = script.keys.sort
+        unless sorted_keys == (0..sorted_keys.max.to_i).to_a
+          raise ArgumentError,
+                'respond_with_script keys must be contiguous non-negative integers starting at 0, ' \
+                "got #{sorted_keys.inspect}"
+        end
+
+        @responses = sorted_keys.map { |k| script[k] }
         self
       end
 
@@ -34,8 +52,19 @@ module Kernai
         self
       end
 
-      def call(messages:, model:, &block)
-        @calls << { messages: messages, model: model }
+      # Schedule an exception at a specific call index (0-based). Lets
+      # scenarios exercise provider-error branches deterministically,
+      # without reaching for stub libraries. The raised class defaults to
+      # Kernai::ProviderError — the same error the base provider contract
+      # raises for wiring problems.
+      def fail_on_step(step, error_class: Kernai::ProviderError, message: 'mock provider failure')
+        @failures[step] = { class: error_class, message: message }
+        self
+      end
+
+      def call(messages:, model:, generation: nil, &block)
+        @calls << { messages: messages, model: model, generation: generation }
+        maybe_raise_scheduled_failure
 
         started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         content = resolve_response(messages, model)
@@ -62,15 +91,36 @@ module Kernai
         @calls.last
       end
 
+      # --- Introspection helpers for scenario assertions ---
+
+      # Messages the provider received at call index `i` (0-based).
+      def messages_at(index)
+        @calls.dig(index, :messages)
+      end
+
+      # GenerationOptions the provider received at call index `i`.
+      def generation_at(index)
+        @calls.dig(index, :generation)
+      end
+
       def reset!
         @responses = []
         @call_count = 0
         @calls = []
         @on_call = nil
         @token_provider = nil
+        @failures = {}
       end
 
       private
+
+      def maybe_raise_scheduled_failure
+        entry = @failures[@call_count]
+        return unless entry
+
+        @call_count += 1
+        raise entry[:class], entry[:message]
+      end
 
       def resolve_response(messages, model)
         if @on_call

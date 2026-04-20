@@ -15,9 +15,9 @@ module Kernai
         @base_url = base_url.chomp('/')
       end
 
-      def call(messages:, model:, &block)
+      def call(messages:, model:, generation: nil, &block)
         uri = URI("#{@base_url}/api/chat")
-        payload = build_payload(messages, model, stream: block_given?)
+        payload = build_payload(messages, model, stream: block_given?, generation: generation)
 
         started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         content, usage = if block
@@ -41,12 +41,26 @@ module Kernai
       # emitted as tagged hashes so build_message can route them to the
       # right field without guessing whether a bare String is user text
       # or a base64 blob.
-      def build_payload(messages, model, stream: false)
-        {
+      def build_payload(messages, model, stream: false, generation: nil)
+        payload = {
           model: model.id,
           messages: messages.map { |m| build_message(m, model) },
           stream: stream
         }
+        apply_generation!(payload, generation)
+        payload
+      end
+
+      # Ollama nests generation knobs under `options`. `max_tokens` is
+      # surfaced by Ollama as `num_predict`. Unknown fields are ignored.
+      def apply_generation!(payload, generation)
+        return if generation.nil? || generation.empty?
+
+        options = {}
+        options[:temperature] = generation.temperature if generation.temperature
+        options[:top_p]       = generation.top_p       if generation.top_p
+        options[:num_predict] = generation.max_tokens  if generation.max_tokens
+        payload[:options] = options unless options.empty?
       end
 
       def build_message(msg, model)

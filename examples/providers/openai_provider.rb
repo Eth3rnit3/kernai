@@ -14,9 +14,9 @@ module Kernai
         @api_key = api_key
       end
 
-      def call(messages:, model:, &block)
+      def call(messages:, model:, generation: nil, &block)
         uri = URI(API_URL)
-        payload = build_payload(messages, model, stream: block_given?)
+        payload = build_payload(messages, model, stream: block_given?, generation: generation)
 
         started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         response = http_post(uri, payload)
@@ -42,7 +42,7 @@ module Kernai
 
       private
 
-      def build_payload(messages, model, stream: false)
+      def build_payload(messages, model, stream: false, generation: nil)
         payload = {
           model: model.id,
           messages: messages.map do |m|
@@ -53,7 +53,24 @@ module Kernai
           payload[:stream] = true
           payload[:stream_options] = { 'include_usage' => true }
         end
+        apply_generation!(payload, generation)
         payload
+      end
+
+      # Route Kernai::GenerationOptions into OpenAI-native params. The
+      # `:thinking :effort` field maps to the newer `reasoning_effort`
+      # param accepted by the o-series / gpt-5 reasoning models; older
+      # models silently ignore it.
+      def apply_generation!(payload, generation)
+        return if generation.nil? || generation.empty?
+
+        payload[:temperature] = generation.temperature if generation.temperature
+        payload[:max_tokens]  = generation.max_tokens  if generation.max_tokens
+        payload[:top_p]       = generation.top_p       if generation.top_p
+        thinking = generation.thinking
+        return unless thinking
+
+        payload[:reasoning_effort] = thinking[:effort].to_s if thinking[:effort]
       end
 
       # OpenAI chat completions accept vision parts as `image_url` objects.

@@ -51,7 +51,8 @@ module Kernai
       # force the reader to chase state across multiple methods without
       # making the logic simpler.
       # rubocop:disable Metrics/AbcSize, Metrics/MethodLength, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity, Metrics/BlockLength
-      def run(agent, input, provider: nil, history: [], recorder: nil, context: nil, &callback)
+      def run(agent, input, provider: nil, history: [], recorder: nil, context: nil,
+              on_task_complete: nil, &callback)
         provider = resolve_provider(agent, provider)
         raise ProviderError, 'No provider configured' unless provider
 
@@ -89,7 +90,8 @@ module Kernai
 
           llm_response = provider.call(
             messages: messages.map(&:to_h),
-            model: agent.model
+            model: agent.model,
+            generation: agent.generation
           ) { |chunk| stream_parser.push(chunk) }
 
           stream_parser.flush
@@ -119,7 +121,8 @@ module Kernai
               ctx: ctx,
               rec: rec,
               step: step,
-              callback: callback
+              callback: callback,
+              on_task_complete: on_task_complete
             )
           elsif command_blocks.any? || protocol_blocks.any?
             # Actionable blocks take priority over `final`: execute them in
@@ -279,7 +282,8 @@ module Kernai
         end
       end
 
-      def execute_workflow(plan, agent:, provider:, ctx:, rec:, step:, callback:)
+      # rubocop:disable Metrics/ParameterLists
+      def execute_workflow(plan, agent:, provider:, ctx:, rec:, step:, callback:, on_task_complete: nil)
         ctx.hydrate_from_plan(plan)
 
         Kernai.logger.info(event: 'workflow.start', tasks: plan.tasks.size)
@@ -287,7 +291,7 @@ module Kernai
         record(rec, ctx, step: step, event: :workflow_start, data: plan.to_h)
         callback&.call(Event.new(:workflow_start, plan.to_h))
 
-        runner = build_task_runner(agent, provider, rec, callback)
+        runner = build_task_runner(agent, provider, rec, callback, on_task_complete)
         scheduler = TaskScheduler.new(ctx, runner)
 
         begin
@@ -313,44 +317,60 @@ module Kernai
           content: "<block type=\"result\" name=\"tasks\">#{JSON.generate(ctx.task_results)}</block>"
         )
       end
+      # rubocop:enable Metrics/ParameterLists
 
       # The returned lambda is a self-contained task runner: spawn a
       # sub-agent, wire its context, emit start/complete/error events
       # with the scope inherited from the scheduler's context. All four
       # observability touches (log, record, callback, duration) live in
       # the same block on purpose.
-      def build_task_runner(agent, provider, rec, callback)
-        lambda do |task, sched_context| # rubocop:disable Metrics/BlockLength
+      def build_task_runner(agent, provider, rec, callback, on_task_complete)
+        lambda do |task, sched_context|
           sub_agent = build_sub_agent(agent)
           sub_context = sched_context.spawn_child
           sub_context.current_task_id = task.id
           sub_input = build_task_input(task, sched_context)
 
           started = monotonic_ms
-          record(rec, sched_context, step: 0, event: :task_start,
-                                     data: { task_id: task.id, input: task.input, depends_on: task.depends_on })
-          callback&.call(Event.new(:task_start, { id: task.id, input: task.input }))
+          emit_task_start(rec, sched_context, task, callback)
 
           begin
             result = Kernel.run(
-              sub_agent,
-              sub_input,
-              provider: provider,
-              context: sub_context,
-              recorder: rec,
-              &callback
+              sub_agent, sub_input,
+              provider: provider, context: sub_context, recorder: rec,
+              on_task_complete: on_task_complete, &callback
             )
-            record(rec, sched_context, step: 0, event: :task_complete,
-                                       data: { task_id: task.id, result: result, duration_ms: monotonic_ms - started })
-            callback&.call(Event.new(:task_complete, { id: task.id, result: result }))
+            emit_task_complete(rec, sched_context, task, result, monotonic_ms - started,
+                               callback, on_task_complete)
             result
           rescue StandardError => e
-            error_data = { task_id: task.id, error: e.message, duration_ms: monotonic_ms - started }
-            record(rec, sched_context, step: 0, event: :task_error, data: error_data)
-            callback&.call(Event.new(:task_error, { id: task.id, error: e.message }))
+            emit_task_error(rec, sched_context, task, e, monotonic_ms - started,
+                            callback, on_task_complete)
             "error: #{e.message}"
           end
         end
+      end
+
+      def emit_task_start(rec, ctx, task, callback)
+        record(rec, ctx, step: 0, event: :task_start,
+                         data: { task_id: task.id, input: task.input, depends_on: task.depends_on })
+        callback&.call(Event.new(:task_start, { id: task.id, input: task.input }))
+      end
+
+      def emit_task_complete(rec, ctx, task, result, duration, callback, on_task_complete)
+        record(rec, ctx, step: 0, event: :task_complete,
+                         data: { task_id: task.id, result: result, duration_ms: duration })
+        callback&.call(Event.new(:task_complete, { id: task.id, result: result }))
+        on_task_complete&.call(task_id: task.id, input: task.input, result: result,
+                               duration_ms: duration, error: nil)
+      end
+
+      def emit_task_error(rec, ctx, task, error, duration, callback, on_task_complete)
+        record(rec, ctx, step: 0, event: :task_error,
+                         data: { task_id: task.id, error: error.message, duration_ms: duration })
+        callback&.call(Event.new(:task_error, { id: task.id, error: error.message }))
+        on_task_complete&.call(task_id: task.id, input: task.input, result: nil,
+                               duration_ms: duration, error: error.message)
       end
 
       # Sub-agents inherit the parent's full max_steps budget. Previously
@@ -591,10 +611,14 @@ module Kernai
           parts = SkillResult.wrap(raw, ctx.media_store)
           duration_ms = monotonic_ms - started
 
+          recorded_result = raw.is_a?(SkillResult) ? raw.text : raw
+          metadata = SkillResult.metadata_of(raw)
+
           Kernai.logger.info(event: 'skill.result', skill: skill_name)
-          record(rec, ctx, step: step, event: :skill_result,
-                           data: { skill: skill_name, result: raw, duration_ms: duration_ms })
-          callback&.call(Event.new(:skill_result, { skill: skill_name, result: raw }))
+          data = { skill: skill_name, result: recorded_result, duration_ms: duration_ms }
+          data[:metadata] = metadata if metadata.any?
+          record(rec, ctx, step: step, event: :skill_result, data: data)
+          callback&.call(Event.new(:skill_result, data))
 
           Message.new(role: :user, content: wrap_result_block(skill_name, parts))
         rescue StandardError => e

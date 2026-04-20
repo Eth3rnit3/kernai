@@ -15,11 +15,15 @@ module Kernai
   class Provider
     # Talk to the vendor.
     #
-    # @param messages [Array<Hash>] [{role:, content: Array<String|Media>}]
-    # @param model    [Kernai::Model] the selected model with its capabilities
-    # @param block    [Proc] optional streaming callback (yields text chunks)
+    # @param messages   [Array<Hash>] [{role:, content: Array<String|Media>}]
+    # @param model      [Kernai::Model] the selected model with its capabilities
+    # @param generation [Kernai::GenerationOptions, nil] provider-agnostic knobs
+    #   (temperature, max_tokens, top_p, thinking, vendor extras). Providers
+    #   inspect the fields they support and ignore the rest. Nil is treated
+    #   as an empty GenerationOptions.
+    # @param block      [Proc] optional streaming callback (yields text chunks)
     # @return [Kernai::LlmResponse]
-    def call(messages:, model:, &block)
+    def call(messages:, model:, generation: nil, &block)
       raise NotImplementedError, "#{self.class}#call must be implemented"
     end
 

@@ -15,10 +15,11 @@ module Kernai
         @api_key = api_key
       end
 
-      def call(messages:, model:, &block)
+      def call(messages:, model:, generation: nil, &block)
         uri = URI(API_URL)
         system_msg, chat_messages = extract_system(messages, model)
-        payload = build_payload(chat_messages, model, system: system_msg, stream: block_given?)
+        payload = build_payload(chat_messages, model,
+                                system: system_msg, stream: block_given?, generation: generation)
 
         started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         response = http_post(uri, payload)
@@ -58,7 +59,7 @@ module Kernai
         [system_msg, chat]
       end
 
-      def build_payload(messages, model, system: nil, stream: false)
+      def build_payload(messages, model, system: nil, stream: false, generation: nil)
         payload = {
           model: model.id,
           max_tokens: 4096,
@@ -68,7 +69,24 @@ module Kernai
         }
         payload[:system] = system if system
         payload[:stream] = true if stream
+        apply_generation!(payload, generation)
         payload
+      end
+
+      # Route Kernai::GenerationOptions into Anthropic-native params.
+      # Silently ignores fields the vendor doesn't understand (e.g. :effort
+      # inside :thinking) so the options object stays portable across
+      # providers.
+      def apply_generation!(payload, generation)
+        return if generation.nil? || generation.empty?
+
+        payload[:temperature] = generation.temperature if generation.temperature
+        payload[:max_tokens]  = generation.max_tokens  if generation.max_tokens
+        payload[:top_p]       = generation.top_p       if generation.top_p
+        thinking = generation.thinking
+        return unless thinking && thinking[:budget]
+
+        payload[:thinking] = { type: 'enabled', budget_tokens: thinking[:budget] }
       end
 
       # Strings are always wrapped as `{type: text, text: ...}` so the

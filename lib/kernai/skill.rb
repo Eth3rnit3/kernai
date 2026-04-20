@@ -75,6 +75,8 @@ module Kernai
 
     @mutex = Mutex.new
 
+    NO_DEFAULT = :__no_default__
+
     def initialize(name)
       @name = name.to_sym
       @inputs = {}
@@ -90,8 +92,33 @@ module Kernai
       @description_text = text
     end
 
-    def input(name, type, default: :__no_default__)
-      @inputs[name] = { type: type, default: default }
+    # Declare an input.
+    #
+    # Type grammar:
+    #   Class                        → value.is_a?(Class)
+    #   [Class, Class, ...]          → union; value.is_a?(any of the classes)
+    #   Array, of: ELEM              → array where every element matches ELEM
+    #   Hash,  schema: { ... }       → object with the given per-key typing
+    #
+    # `ELEM` and `schema` entries share a grammar:
+    #   Class                        → required scalar of that class
+    #   [Class, Class]               → required union scalar
+    #   Hash (shorthand schema)      → required nested object (Hash {...})
+    #   { type:, default:, of:, schema: }   → full spec hash
+    def input(name, type, default: NO_DEFAULT, of: nil, schema: nil)
+      raise ArgumentError, "Invalid input spec for :#{name} — `of:` requires type Array" if of && type != Array
+
+      if schema && type != Hash
+        raise ArgumentError,
+              "Invalid input spec for :#{name} — `schema:` requires type Hash"
+      end
+      raise ArgumentError, "Invalid input spec for :#{name} — unsupported type #{type.inspect}" unless valid_type?(type)
+      raise ArgumentError, "Invalid element spec for :#{name} — #{of.inspect}" if of && !valid_element_spec?(of)
+
+      spec = { type: type, default: default }
+      spec[:of] = of if of
+      spec[:schema] = schema if schema
+      @inputs[name] = spec
     end
 
     # Declare a non-secret configuration value. Visible in the skill's
@@ -161,12 +188,7 @@ module Kernai
       parts = ["- #{@name}"]
       parts << ": #{@description_text}" if @description_text
       if @inputs.any?
-        inputs_str = @inputs.map do |name, spec|
-          str = "#{name} (#{spec[:type].name})"
-          str += " default: #{spec[:default]}" unless spec[:default] == :__no_default__
-          str
-        end.join(', ')
-        parts << "\n  Inputs: #{inputs_str}"
+        parts << "\n  Inputs: #{render_inputs_summary}"
         parts << "\n  Usage: #{usage_example}"
       end
       if @configs.any?
@@ -192,29 +214,33 @@ module Kernai
 
     private
 
-    def usage_example
-      if @inputs.size == 1
-        input_name = @inputs.keys.first
-        "<block type=\"command\" name=\"#{@name}\">#{input_name} value</block>"
-      else
-        json = @inputs.map { |k, _| "\"#{k}\": \"...\"" }.join(', ')
-        "<block type=\"command\" name=\"#{@name}\">{#{json}}</block>"
+    # --- DSL-time spec validation ---
+
+    def valid_type?(type)
+      return true if type.is_a?(Class)
+      return true if type.is_a?(Array) && type.any? && type.all? { |t| t.is_a?(Class) }
+
+      false
+    end
+
+    def valid_element_spec?(spec)
+      case spec
+      when Class then true
+      when Array then spec.any? && spec.all? { |t| t.is_a?(Class) }
+      when Hash  then true
+      else false
       end
     end
 
+    # --- Validation / coercion ---
+
     def validate_params(params)
+      normalized = symbolize_top_level(params)
       result = {}
       @inputs.each do |name, spec|
-        if params.key?(name)
-          value = params[name]
-          unless value.is_a?(spec[:type])
-            raise ArgumentError,
-                  "Expected #{name} to be #{spec[:type]}, got #{value.class}.\n\n" \
-                  "#{schema_hint(params)}"
-          end
-
-          result[name] = value
-        elsif spec[:default] != :__no_default__
+        if normalized.key?(name)
+          result[name] = validate_value(normalized[name], spec, path: name.to_s, received: params)
+        elsif spec[:default] != NO_DEFAULT
           result[name] = spec[:default]
         else
           raise ArgumentError,
@@ -223,6 +249,169 @@ module Kernai
         end
       end
       result
+    end
+
+    def validate_value(value, spec, path:, received: nil)
+      type = spec[:type]
+
+      unless type_matches?(value, type)
+        raise ArgumentError,
+              "Expected #{path} to be #{format_type(type)}, got #{value.class}.\n\n" \
+              "#{schema_hint(received || {})}"
+      end
+
+      return validate_array(value, spec[:of], path: path, received: received) if type == Array && spec[:of]
+      return validate_hash(value, spec[:schema], path: path, received: received) if type == Hash && spec[:schema]
+
+      value
+    end
+
+    def type_matches?(value, type)
+      return type.any? { |t| value.is_a?(t) } if type.is_a?(Array)
+
+      value.is_a?(type)
+    end
+
+    def format_type(type)
+      return type.map { |t| type_name(t) }.join(' or ') if type.is_a?(Array)
+
+      type_name(type)
+    end
+
+    def validate_array(array, element_spec, path:, received:)
+      normalized = normalize_element_spec(element_spec)
+      array.each_with_index.map do |elem, idx|
+        validate_value(elem, normalized, path: "#{path}[#{idx}]", received: received)
+      end
+    end
+
+    def validate_hash(hash, schema, path:, received:)
+      normalized_hash = symbolize_top_level(hash)
+      result = {}
+      schema.each do |key, entry|
+        entry_spec = normalize_schema_entry(entry)
+        sub_path = "#{path}.#{key}"
+        if normalized_hash.key?(key.to_sym)
+          result[key.to_sym] = validate_value(normalized_hash[key.to_sym], entry_spec,
+                                              path: sub_path, received: received)
+        elsif entry_spec[:default] != NO_DEFAULT
+          result[key.to_sym] = entry_spec[:default]
+        else
+          raise ArgumentError, "Missing required input: #{sub_path} for skill '#{@name}'."
+        end
+      end
+      result
+    end
+
+    # Shorthand forms accepted as element_spec:
+    #   Class                  → scalar of Class
+    #   [Class, Class, ...]    → union scalar
+    #   Hash without :type     → nested schema (type inferred to Hash)
+    #   Hash with :type        → full spec hash
+    def normalize_element_spec(element_spec)
+      case element_spec
+      when Class, Array
+        { type: element_spec, default: NO_DEFAULT, of: nil, schema: nil }
+      when Hash
+        if spec_hash?(element_spec)
+          normalize_schema_entry(element_spec)
+        else
+          { type: Hash, default: NO_DEFAULT, of: nil, schema: element_spec }
+        end
+      else
+        raise ArgumentError, "Invalid element spec: #{element_spec.inspect}"
+      end
+    end
+
+    def normalize_schema_entry(entry)
+      case entry
+      when Class, Array
+        { type: entry, default: NO_DEFAULT, of: nil, schema: nil }
+      when Hash
+        if spec_hash?(entry)
+          keyed = entry.each_with_object({}) { |(k, v), h| h[k.to_sym] = v }
+          {
+            type: keyed[:type],
+            default: keyed.fetch(:default, NO_DEFAULT),
+            of: keyed[:of],
+            schema: keyed[:schema]
+          }
+        else
+          { type: Hash, default: NO_DEFAULT, of: nil, schema: entry }
+        end
+      else
+        raise ArgumentError, "Invalid schema entry: #{entry.inspect}"
+      end
+    end
+
+    # A "spec hash" carries a `:type` key (symbol or string). Without one,
+    # a Hash passed as an element_spec or schema entry is interpreted as a
+    # nested schema (shorthand).
+    def spec_hash?(hash)
+      hash.key?(:type) || hash.key?('type')
+    end
+
+    def symbolize_top_level(hash)
+      return {} if hash.nil?
+
+      hash.each_with_object({}) { |(k, v), acc| acc[k.to_sym] = v }
+    end
+
+    # --- Description rendering ---
+
+    def render_inputs_summary
+      @inputs.map { |name, spec| render_input_entry(name, spec) }.join(', ')
+    end
+
+    def render_input_entry(name, spec)
+      str = "#{name} (#{render_type(spec)})"
+      str += " default: #{spec[:default]}" if spec[:default] != NO_DEFAULT
+      str
+    end
+
+    def render_type(spec)
+      type = spec[:type]
+
+      if type == Array && spec[:of]
+        "Array<#{render_element_type(spec[:of])}>"
+      elsif type == Hash && spec[:schema]
+        "Hash{#{render_schema_keys(spec[:schema])}}"
+      elsif type.is_a?(Array)
+        type.map { |t| type_name(t) }.join('|')
+      else
+        type_name(type)
+      end
+    end
+
+    def render_element_type(element_spec)
+      case element_spec
+      when Class then type_name(element_spec)
+      when Array then element_spec.map { |t| type_name(t) }.join('|')
+      when Hash
+        if spec_hash?(element_spec)
+          render_type(normalize_schema_entry(element_spec))
+        else
+          "Hash{#{render_schema_keys(element_spec)}}"
+        end
+      end
+    end
+
+    def render_schema_keys(schema)
+      schema.map { |k, v| "#{k}: #{render_type(normalize_schema_entry(v))}" }.join(', ')
+    end
+
+    def type_name(type)
+      type.name || type.to_s
+    end
+
+    def usage_example
+      if @inputs.size == 1
+        input_name = @inputs.keys.first
+        "<block type=\"command\" name=\"#{@name}\">#{input_name} value</block>"
+      else
+        json = @inputs.map { |k, _| "\"#{k}\": \"...\"" }.join(', ')
+        "<block type=\"command\" name=\"#{@name}\">{#{json}}</block>"
+      end
     end
 
     # Builds a self-contained schema reminder included in every validation

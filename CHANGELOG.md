@@ -5,7 +5,52 @@ All notable changes to Kernai are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0]
+
+### Added
+
+- **Typed input schemas on `Kernai::Skill`** — `input` now accepts:
+  - Union types: `input :flag, [TrueClass, FalseClass]`
+  - Typed arrays: `input :labels, Array, of: String`
+  - Typed hashes: `input :options, Hash, schema: { retries: Integer }`
+  - Array-of-object shorthand: `input :tickets, Array, of: { title: String, priority: { type: String, default: 'medium' } }`
+  - Nested schemas validate recursively; error messages carry the full
+    dotted path (`tickets[1].priority`) so agents self-correct in one retry.
+- **`Kernai::GenerationOptions`** — provider-agnostic value object
+  carrying `temperature`, `max_tokens`, `top_p`, `thinking` (`budget` /
+  `effort`), plus vendor-specific `extra:` kwargs. Plumbed via
+  `Agent.new(generation:)` and `Provider#call(generation:)`. Providers
+  inspect the fields they support and silently ignore the rest.
+- **Rich `Kernai::SkillResult` return type** — skills may now return
+  `SkillResult.new(text:, media:, metadata:)`. `text` goes in the
+  LLM-facing result block, `media` is spliced as usual, `metadata` is
+  attached to the `:skill_result` recorder entry and never shown to the
+  LLM. All legacy return shapes (String, Media, Array, nil) still work.
+- **Pluggable `Kernai::Recorder::Sink`** — `MemorySink` (default,
+  matches historical behavior), `CompositeSink` for fan-out, and a
+  `Base` class for custom sinks (DB, SSE, ...). The `Recorder` delegates
+  persistence to any object implementing `#record(entry)`.
+- **Token accounting helpers** on `Recorder` — `#token_usage`,
+  `#token_usage_per_step`, `#token_usage_per_task` aggregate over
+  `:llm_response` events. Providers remain responsible for filling
+  `LlmResponse#prompt_tokens` / `#completion_tokens`.
+- **`on_task_complete:` callback on `Kernel.run`** — fires once per
+  workflow sub-task (success AND error) with
+  `(task_id:, input:, result:, duration_ms:, error:)`. Distinct from
+  the streaming `&callback`; meant for per-task persistence by the host.
+- **Mock provider scenario helpers** — `respond_with_script(0 => ..., 1 => ...)`
+  for step-indexed scripts, `fail_on_step` for deterministic error
+  injection, `messages_at(i)` / `generation_at(i)` for per-call
+  introspection.
+
+### Changed
+
+- `Provider#call` signature now includes a `generation: nil` keyword.
+  Custom providers should accept and route it; the default bundled
+  providers (Anthropic / OpenAI / Ollama) do so. Unchanged behavior
+  when `generation` is empty.
+
+## [0.1.0]
 
 ### Added
 
