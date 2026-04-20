@@ -106,11 +106,14 @@ module Kernai
     #   Hash (shorthand schema)      → required nested object (Hash {...})
     #   { type:, default:, of:, schema: }   → full spec hash
     def input(name, type, default: NO_DEFAULT, of: nil, schema: nil)
-      raise ArgumentError, "Invalid input spec for :#{name} — `of:` requires type Array" if of && type != Array
-
-      if schema && type != Hash
+      if of && !type_includes?(type, Array)
         raise ArgumentError,
-              "Invalid input spec for :#{name} — `schema:` requires type Hash"
+              "Invalid input spec for :#{name} — `of:` requires type Array (or a union containing Array)"
+      end
+
+      if schema && !type_includes?(type, Hash)
+        raise ArgumentError,
+              "Invalid input spec for :#{name} — `schema:` requires type Hash (or a union containing Hash)"
       end
       raise ArgumentError, "Invalid input spec for :#{name} — unsupported type #{type.inspect}" unless valid_type?(type)
       raise ArgumentError, "Invalid element spec for :#{name} — #{of.inspect}" if of && !valid_element_spec?(of)
@@ -235,6 +238,14 @@ module Kernai
       false
     end
 
+    # True when `type` is `expected`, or a union Array that contains it.
+    def type_includes?(type, expected)
+      return true if type == expected
+      return true if type.is_a?(Array) && type.include?(expected)
+
+      false
+    end
+
     def valid_element_spec?(spec)
       case spec
       when Class then true
@@ -272,8 +283,11 @@ module Kernai
               "#{schema_hint(received || {})}"
       end
 
-      return validate_array(value, spec[:of], path: path, received: received) if type == Array && spec[:of]
-      return validate_hash(value, spec[:schema], path: path, received: received) if type == Hash && spec[:schema]
+      # For union types (e.g. `[Array, NilClass]`), the `of:` / `schema:`
+      # nested validation runs only when the actual value IS an Array or
+      # Hash. Nil, or any other branch of the union, is accepted as-is.
+      return validate_array(value, spec[:of], path: path, received: received) if spec[:of] && value.is_a?(Array)
+      return validate_hash(value, spec[:schema], path: path, received: received) if spec[:schema] && value.is_a?(Hash)
 
       value
     end

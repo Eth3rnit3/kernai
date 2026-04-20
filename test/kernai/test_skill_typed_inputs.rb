@@ -312,4 +312,58 @@ class TestSkillTypedInputs < Minitest::Test
 
     assert_equal 'hi world', skill.call({})
   end
+
+  # --- Union types with `of:` / `schema:` (nullable arrays/hashes) ---
+
+  def test_union_array_type_with_of_accepts_nil
+    skill = Kernai::Skill.define(:plan) do
+      input :labels, [Array, NilClass], of: String, default: nil
+      execute { |p| p[:labels].inspect }
+    end
+
+    assert_equal 'nil', skill.call({})
+    assert_equal 'nil', skill.call(labels: nil)
+    assert_equal '["a", "b"]', skill.call(labels: %w[a b])
+  end
+
+  def test_union_array_type_with_of_still_validates_element_type_when_present
+    skill = Kernai::Skill.define(:plan) do
+      input :labels, [Array, NilClass], of: String, default: nil
+      execute { |p| p[:labels] }
+    end
+
+    err = assert_raises(ArgumentError) { skill.call(labels: ['ok', 42]) }
+    assert_match(/labels\[1\] to be String, got Integer/, err.message)
+  end
+
+  def test_union_hash_type_with_schema_accepts_nil
+    skill = Kernai::Skill.define(:configure) do
+      input :options, [Hash, NilClass], schema: { retries: Integer }, default: nil
+      execute { |p| p[:options].inspect }
+    end
+
+    assert_equal 'nil', skill.call({})
+    assert_equal 'nil', skill.call(options: nil)
+    assert_equal '{retries: 3}', skill.call(options: { retries: 3 })
+  end
+
+  def test_of_rejected_when_type_union_does_not_contain_array
+    err = assert_raises(ArgumentError) do
+      Kernai::Skill.define(:bad) do
+        input :x, [String, NilClass], of: Integer
+        execute { |_| nil }
+      end
+    end
+    assert_match(/`of:` requires type Array/, err.message)
+  end
+
+  def test_schema_rejected_when_type_union_does_not_contain_hash
+    err = assert_raises(ArgumentError) do
+      Kernai::Skill.define(:bad) do
+        input :x, [String, NilClass], schema: { k: String }
+        execute { |_| nil }
+      end
+    end
+    assert_match(/`schema:` requires type Hash/, err.message)
+  end
 end

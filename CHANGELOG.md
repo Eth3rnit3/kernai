@@ -5,6 +5,19 @@ All notable changes to Kernai are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3]
+
+### Changed
+
+- **Typed inputs now accept union types on the `of:` / `schema:` axis.**
+  You can write `input :tags, [Array, NilClass], of: String, default: nil`
+  to declare a nullable array of strings, or `input :opts, [Hash, NilClass],
+  schema: { ... }, default: nil` for a nullable typed hash. The nested
+  `of:` / `schema:` validation is skipped when the actual value is not
+  the array/hash branch (nil, for instance), so the two DSL axes compose
+  cleanly. Previously `of:` strictly required `type == Array`, forcing
+  users to fall back to `default: []` to express optional arrays.
+
 ## [0.2.2]
 
 ### Added
