@@ -5,6 +5,23 @@ All notable changes to Kernai are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.4]
+
+### Changed
+
+- **Actionable agents no longer silently accept prose-only turns.**
+  When an agent with a `skills:` list (even empty) or registered
+  protocols emits zero blocks in a turn — the classic "I will now do
+  X..." stall — the kernel now injects a corrective `<block type="error">`
+  into the conversation and reruns the step, mirroring the existing
+  `informational_only` branch. This kills the silent chatbot-fallback
+  that was rewarding models for narrating intent without committing to
+  a command. Recorder + streaming callback both emit a new
+  `:no_blocks_stall` event carrying a prose preview for observability.
+  Pure chatbot agents (`skills: nil`, `protocols: nil`/`[]`) keep the
+  permissive behaviour — prose is a legitimate final when the agent
+  can't act.
+
 ## [0.2.3]
 
 ### Changed

@@ -152,9 +152,17 @@ module Kernai
             # inject a corrective feedback and let the loop run another
             # step so the agent can follow up with an actual action.
             messages << handle_informational_only(blocks, rec, ctx, step, callback)
+          elsif actionable_agent?(agent)
+            # Blocks array is empty — the agent replied with plain prose
+            # ("I will now create ...") while it HAD actionable skills or
+            # protocols available. That's the classic stall: narrating
+            # intent while committing to nothing. Mirror the
+            # informational_only branch: feed back a corrective and let
+            # the loop rerun so the agent actually acts this turn.
+            messages << handle_no_blocks(llm_response.content, rec, ctx, step, callback)
           else
-            # Truly no blocks — the agent replied with plain prose. Treat
-            # that as a chatbot-style final answer and return it as-is.
+            # Pure chatbot (no skills, no protocols): prose is legitimate,
+            # treat it as the final answer and exit cleanly.
             result = llm_response.content
             record(rec, ctx, step: step, event: :result, data: result)
             break
@@ -235,6 +243,39 @@ module Kernai
                    'an external system, or <block type="final"> to end the turn. ' \
                    'Reason with <plan> AND act in the same response — do not ' \
                    'split thinking and action across turns.</block>'
+        )
+      end
+
+      # An agent is "actionable" as soon as it has at least one mean of
+      # doing something other than writing prose: a skills list (even
+      # empty, meaning the rail is opted in) or at least one registered
+      # protocol it can reach. When an actionable agent emits zero
+      # blocks we assume it's stalling, not chatting.
+      def actionable_agent?(agent)
+        return true unless agent.skills.nil?
+        return true if agent.protocols && !agent.protocols.empty?
+
+        false
+      end
+
+      # Parallel of handle_informational_only for the "plain prose, no
+      # blocks at all" case. Injects a corrective error block into the
+      # conversation so the next step forces the agent to commit to an
+      # actual command / final. The original prose is echoed back so the
+      # agent can reuse its reasoning without re-emitting it from scratch.
+      def handle_no_blocks(prose, rec, ctx, step, callback)
+        Kernai.logger.info(event: 'agent.no_blocks_stall')
+        record(rec, ctx, step: step, event: :no_blocks_stall,
+                         data: { prose_preview: prose.to_s[0, 400] })
+        callback&.call(Event.new(:no_blocks_stall, { prose_preview: prose.to_s[0, 400] }))
+
+        Message.new(
+          role: :user,
+          content: '<block type="error">Your previous response contained no block ' \
+                   'and therefore accomplished nothing. You announced an action in ' \
+                   "prose without executing it. Act NOW: emit <block type=\"command\" " \
+                   'name="..."> to invoke a skill, or <block type="final"> if the ' \
+                   'answer is purely informational. Do not narrate intent — commit.</block>'
         )
       end
 
