@@ -5,6 +5,20 @@ All notable changes to Kernai are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5]
+
+### Changed
+
+- **`handle_no_blocks` error message now guards against turn duplication.**
+  When the kernel reruns a stalled turn it tells the agent explicitly to
+  review prior `<block type="result">` entries in the conversation and
+  NOT retry actions that already succeeded. It also enforces that any
+  `<block type="final">` summary must reflect only actions confirmed by
+  a result block — no more phantom "Les tâches ont été ajoutées avec
+  succès" when nothing actually ran. Targets the real-world failure
+  mode where small models re-emit the same skill calls after a stall
+  and then lie in the final.
+
 ## [0.2.4]
 
 ### Changed

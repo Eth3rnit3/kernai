@@ -275,7 +275,14 @@ module Kernai
                    'and therefore accomplished nothing. You announced an action in ' \
                    "prose without executing it. Act NOW: emit <block type=\"command\" " \
                    'name="..."> to invoke a skill, or <block type="final"> if the ' \
-                   'answer is purely informational. Do not narrate intent — commit.</block>'
+                   'answer is purely informational. Do not narrate intent — commit. ' \
+                   'IMPORTANT: review the conversation above — any skill call with a ' \
+                   '<block type="result"> already SUCCEEDED, do not retry or duplicate ' \
+                   'it. If every necessary action already succeeded this turn, emit a ' \
+                   '<block type="final"> summarising what was done with the ids from ' \
+                   'those results. Your final must describe only actions confirmed by ' \
+                   'a <block type="result"> — never claim a success that was not ' \
+                   'confirmed.</block>'
         )
       end
 
