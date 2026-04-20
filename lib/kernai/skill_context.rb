@@ -11,10 +11,18 @@ module Kernai
   # Missing required credentials raise Kernai::CredentialMissingError
   # only when the skill actually tries to read them.
   class SkillContext
-    def initialize(skill, credential_resolver: nil, config_resolver: nil)
+    # `run_context` is the per-run `Kernai::Context` (or a subclass) that
+    # initiated the skill invocation. Host applications subclass Context
+    # to carry domain references (current user, ticket being executed,
+    # request id, ...) so skills can act on the broader state without
+    # reaching for thread-locals or globals. `nil` outside a Kernel.run.
+    attr_reader :run_context
+
+    def initialize(skill, credential_resolver: nil, config_resolver: nil, run_context: nil)
       @skill = skill
       @credential_resolver = credential_resolver
       @config_resolver = config_resolver
+      @run_context = run_context
       @cache = {}
     end
 

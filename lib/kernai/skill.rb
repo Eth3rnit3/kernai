@@ -167,18 +167,30 @@ module Kernai
       model.supports?(*@required_capabilities)
     end
 
+    # Invoke the skill with a positional params hash or keyword args.
+    # Callers that need to surface the per-run Kernai::Context (e.g.
+    # the kernel itself) should use `call_in_context` instead.
     def call(params = {})
+      call_in_context(params, run_context: nil)
+    end
+
+    # Same as #call but forwards a run_context to the SkillContext so
+    # the skill's execute block can reach `ctx.run_context` (the host
+    # application's per-run state: current actor, ticket, request id,
+    # whatever the host subclassed Kernai::Context to carry).
+    def call_in_context(params, run_context:)
       validated = validate_params(params)
 
       # Arity compat: legacy skills take `|params|` only. New skills
-      # opt into `|params, ctx|` to reach credentials/config. We pass
-      # the context only when the block can accept it.
+      # opt into `|params, ctx|` to reach credentials/config AND the
+      # host's per-run Context (via `ctx.run_context`). We pass the
+      # context only when the block can accept it.
       #   |p|        → arity 1  → legacy
       #   |p, c|     → arity 2  → new
       #   |p, *rest| → arity -2 → new (splat can absorb ctx)
       arity = @execute_block.arity
       if arity >= 2 || arity <= -2
-        @execute_block.call(validated, SkillContext.new(self))
+        @execute_block.call(validated, SkillContext.new(self, run_context: run_context))
       else
         @execute_block.call(validated)
       end

@@ -607,7 +607,7 @@ module Kernai
           record(rec, ctx, step: step, event: :skill_execute, data: { skill: skill_name, params: params })
 
           started = monotonic_ms
-          raw = skill.call(params)
+          raw = skill.call_in_context(params, run_context: ctx)
           parts = SkillResult.wrap(raw, ctx.media_store)
           duration_ms = monotonic_ms - started
 

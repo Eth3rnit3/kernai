@@ -5,6 +5,20 @@ All notable changes to Kernai are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2]
+
+### Added
+
+- **`SkillContext#run_context`** — skills defined with arity-2 blocks
+  (`execute do |params, ctx|`) can now reach the per-`Kernel.run`
+  `Kernai::Context` via `ctx.run_context`. Host applications that
+  subclass `Context` to carry domain state (current actor, ticket
+  being executed, request id, …) no longer need thread-locals or
+  globals to surface that state inside skills.
+- **`Skill#call_in_context(params, run_context:)`** — new entry point
+  the kernel uses to forward its `Context` into the skill. Legacy
+  `skill.call(params)` still works with `run_context = nil`.
+
 ## [0.2.1]
 
 ### Added
