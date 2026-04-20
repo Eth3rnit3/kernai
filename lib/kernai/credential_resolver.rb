@@ -62,7 +62,7 @@ module Kernai
         return value.to_s unless value.nil?
       end
       value = @data[key.to_sym] || @data[key.to_s]
-      value.nil? ? nil : value.to_s
+      value&.to_s
     end
   end
 end

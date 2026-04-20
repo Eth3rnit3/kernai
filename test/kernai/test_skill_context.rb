@@ -57,7 +57,10 @@ class TestSkillContext < Minitest::Test
     skill = define_skill
     call_count = 0
     resolver = Class.new do
-      define_method(:resolve) { |_s, _k| call_count += 1; 'x' }
+      define_method(:resolve) do |_s, _k|
+        call_count += 1
+        'x'
+      end
     end.new
     Kernai.config.credential_resolver = resolver
     ctx = Kernai::SkillContext.new(skill)

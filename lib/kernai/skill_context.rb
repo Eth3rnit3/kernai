@@ -36,7 +36,7 @@ module Kernai
       if value.nil? && spec[:required]
         raise Kernai::CredentialMissingError,
               "Missing required credential '#{key}' for skill '#{@skill.name}'. " \
-              "Configure it via the host (e.g. kernai-shell `/skill-config`) or " \
+              'Configure it via the host (e.g. kernai-shell `/skill-config`) or ' \
               "set KERNAI_SKILL_#{@skill.name.to_s.upcase}_#{key.to_s.upcase}."
       end
 

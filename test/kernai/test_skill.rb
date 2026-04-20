@@ -456,7 +456,10 @@ class TestSkill < Minitest::Test
     Kernai::Skill.define(:search) do
       input :query, String
       credential :api_key
-      execute { |p, ctx| seen = ctx.class; "ok-#{p[:query]}" }
+      execute do |p, ctx|
+        seen = ctx.class
+        "ok-#{p[:query]}"
+      end
     end
     Kernai.config.credential_resolver = Kernai::HashResolver.new
     assert_equal 'ok-hi', Kernai::Skill.find(:search).call(query: 'hi')
@@ -502,7 +505,7 @@ class TestSkill < Minitest::Test
       description 'Search'
       input :query, String
       credential :api_key, required: true
-      execute { |p, ctx| ctx.credential(:api_key) }
+      execute { |_p, ctx| ctx.credential(:api_key) }
     end
     desc = Kernai::Skill.find(:search).to_description
     assert_includes desc, 'Credentials:'
@@ -518,7 +521,7 @@ class TestSkill < Minitest::Test
       description 'Search'
       input :query, String
       credential :api_key, required: true
-      execute { |p, ctx| ctx.credential(:api_key) }
+      execute { |_p, ctx| ctx.credential(:api_key) }
     end
     listing = Kernai::Skill.listing(:all)
     refute_includes listing, 'leak-me-if-you-can'
