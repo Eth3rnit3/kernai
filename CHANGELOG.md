@@ -5,6 +5,25 @@ All notable changes to Kernai are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1]
+
+### Added
+
+- **`Kernai::Providers::Anthropic` / `Openai` / `Ollama`** — bundled
+  HTTP adapters promoted from `examples/providers/` into `lib/`.
+  Zero runtime deps (stdlib only), stream + multimodal + generation
+  options routing. Opt-in via `require 'kernai/providers'`, or just
+  `require 'kernai/providers/anthropic'` for a single adapter.
+- Backward-compat: `Kernai::Examples::{AnthropicProvider, OpenaiProvider,
+  OllamaProvider}` still work as aliases to the new classes, so existing
+  VCR cassettes and code keep running without changes.
+
+### Changed
+
+- Provider adapters now accept `api_url:` / `base_url:` / `api_version:`
+  kwargs so they work against compatible proxies and self-hosted
+  endpoints without monkey-patching.
+
 ## [0.2.0]
 
 ### Added
