@@ -271,18 +271,26 @@ module Kernai
 
         Message.new(
           role: :user,
-          content: '<block type="error">Your previous response contained no block ' \
-                   'and therefore accomplished nothing. You announced an action in ' \
-                   "prose without executing it. Act NOW: emit <block type=\"command\" " \
-                   'name="..."> to invoke a skill, or <block type="final"> if the ' \
-                   'answer is purely informational. Do not narrate intent — commit. ' \
-                   'IMPORTANT: review the conversation above — any skill call with a ' \
-                   '<block type="result"> already SUCCEEDED, do not retry or duplicate ' \
-                   'it. If every necessary action already succeeded this turn, emit a ' \
-                   '<block type="final"> summarising what was done with the ids from ' \
-                   'those results. Your final must describe only actions confirmed by ' \
+          content: '<block type="error">Your previous response contained no block. ' \
+                   'In this runtime, naked prose is DROPPED — the user never sees it. ' \
+                   'To deliver an answer you MUST wrap it in a block. Two options:' \
+                   "\n\n" \
+                   '1. If the answer is purely informational (no action needed, or you ' \
+                   'decline because no skill fits the request), WRAP the exact text ' \
+                   'you wanted to send in a final block, like this:' \
+                   "\n" \
+                   '<block type="final">(your informational answer, e.g. "Je ne peux pas faire X car aucune skill ne le permet.")</block>' \
+                   "\n\n" \
+                   '2. If an action is needed and a matching skill exists, emit the ' \
+                   'command block directly:' \
+                   "\n" \
+                   '<block type="command" name="SKILL_NAME">{...}</block>' \
+                   "\n\n" \
+                   'IMPORTANT: review the conversation — any skill call that already ' \
+                   'produced a <block type="result"> SUCCEEDED, do NOT retry or ' \
+                   'duplicate it. Your final must describe only actions confirmed by ' \
                    'a <block type="result"> — never claim a success that was not ' \
-                   'confirmed.</block>'
+                   'confirmed. Copy the prose you just wrote and wrap it now.</block>'
         )
       end
 

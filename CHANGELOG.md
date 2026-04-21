@@ -5,6 +5,21 @@ All notable changes to Kernai are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6]
+
+### Changed
+
+- **`handle_no_blocks` corrective now shows the exact wrapping syntax.**
+  Small models (gpt-4o included) occasionally emit a perfectly
+  reasonable informational answer in naked prose and get stuck in the
+  stall-rerun loop because the previous corrective ("Act NOW") pushed
+  them toward calling a skill rather than realising they could simply
+  wrap the existing prose. The new message spells out both branches
+  with a concrete `<block type="final">(your text)</block>` example and
+  an explicit "copy the prose you just wrote and wrap it now".
+  Terminates the real-world stall where the agent kept re-emitting the
+  same "Je ne peux pas faire X" sentence 20 times until MaxSteps.
+
 ## [0.2.5]
 
 ### Changed

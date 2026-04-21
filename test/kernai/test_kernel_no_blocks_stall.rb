@@ -70,7 +70,12 @@ class TestKernelNoBlocksStall < Minitest::Test
     refute_nil error_msg, 'expected a corrective user error block'
     joined = error_msg[:content].join
     assert_includes joined, 'no block'
-    assert_includes joined, 'Act NOW'
+    # The corrective must spell out both options (wrap informational
+    # prose OR emit a command) so the model doesn't get stuck
+    # re-emitting naked prose.
+    assert_includes joined, '<block type="final">'
+    assert_includes joined, '<block type="command"'
+    assert_includes joined, 'wrap it now'
   end
 
   def test_actionable_agent_emits_no_blocks_stall_event
